@@ -178,7 +178,13 @@ def main(args):
 
     logger.info("Building tokenizers")
     text_tokenizer = transformers.AutoTokenizer.from_pretrained(args.text_tokenizer, use_fast=True)
-    schema_tokenizer = nsp.TopSchemaTokenizer(schema_vocab, text_tokenizer)
+    max_src_len = max([len(text_tokenizer.encode(t)) for t in train_data.tokens])
+
+    logger.info(f"Maximum source text length is {max_src_len}")
+    if max_src_len > 512:
+        logger.warning(f"max_src_len is {max_src_len}, you might be in trouble")
+
+    schema_tokenizer = nsp.TopSchemaTokenizer(schema_vocab, text_tokenizer, max_pointer_len=max_src_len)
 
     logger.info("Tokenizing train dataset")
     train_dataset = nsp.data.make_dataset(train_path, schema_tokenizer)

@@ -64,7 +64,7 @@ class TopSchemaTokenizer:
 
     """
 
-    def __init__(self, schema_vocab, src_text_tokenizer: transformers.PreTrainedTokenizer):
+    def __init__(self, schema_vocab, src_text_tokenizer: transformers.PreTrainedTokenizer, max_pointer_len):
         """
         :param schema_vocab: iterable with all schema tokens (not source text tokens)
         :param src_text_tokenizer: transformers.PreTrainedTokenizer object
@@ -75,9 +75,10 @@ class TopSchemaTokenizer:
 
         self.vocab = schema_vocab
         self._itos = [self.pad_token, self.bos_token, self.eos_token] + sorted(schema_vocab)
-        self._stoi = {s: i for i, s in enumerate(self._itos)}
+        self._stoi = {s: max_pointer_len + i for i, s in enumerate(self._itos)}
 
         self.src_tokenizer = src_text_tokenizer
+        self.max_pointer_len = max_pointer_len
 
     @property
     def vocab_size(self):
@@ -104,8 +105,8 @@ class TopSchemaTokenizer:
         return [self.pad_token_id, self.bos_token_id, self.eos_token_id]
 
     def index2token(self, i):
-        if i < self.vocab_size:
-            return self._itos[i]
+        if i >= self.max_pointer_len:
+            return self._itos[i - self.max_pointer_len]
         else:
             # returns ptr@{i-self.vocab_size}
             return self.decode([i])[0]
@@ -134,12 +135,16 @@ class TopSchemaTokenizer:
         return item
 
     def convert_tokens_to_ids(self, schema_tokens, src_token_ids) -> SchemaItem:
-        """
+        """Converts schema_tokens to ids taking into account pointer ids
+
         :param schema_tokens: string
         :param src_token_ids: list or numpy array of integers
         :return: list of integers - a mix of token ids and position ids
             position id = position + vocab_size
         """
+        if len(src_token_ids) > self.max_pointer_len:
+            raise NotImplementedError()
+
         schema_ids = []
         pointer_mask = []
 
@@ -159,20 +164,25 @@ class TopSchemaTokenizer:
                 *self.special_tokens,
             } or schema_tokens[i - 1] in {"IN:", "SL:"}
             if token in self._stoi and token_follows_schema:
-                # The reason for second condition are cases when a word from a text exacly equal to the schema word
+                # The reason for second condition are cases when a word from a text is exactly equal to the schema word
                 # e.g. "IS THERE A PATH"
-                # PATH is in a schema vocabulary, but not a schema word
+                # in this case PATH is in the schema vocabulary, but not a schema word
 
                 pointer_mask.append(0)
                 schema_ids.append(self._stoi[token])
                 continue
+
+            # Pointer ids are created here
 
             subtokens = self.src_tokenizer.encode(token, add_special_tokens=False)
 
             for subtoken in subtokens:
                 assert subtoken == src_token_ids[src_tokens_pointer]
                 pointer_mask.append(1)
-                schema_ids.append(self.vocab_size + src_tokens_pointer)
+
+                # We have changed the ordering of pointer ids and vocab ids in Sep 2021
+                # the reason being class-incremental scenario, where we need to be able to extend the vocabulary easily
+                schema_ids.append(src_tokens_pointer)
                 src_tokens_pointer += 1
 
         return SchemaItem(schema_ids, pointer_mask)
@@ -183,15 +193,17 @@ class TopSchemaTokenizer:
         text_chunk_ids = []
 
         for i in ids:
-            if i < self.vocab_size:
+            if i >= self.max_pointer_len:
+                # regular token
                 if text_chunk_ids and source_ids is not None:
                     schema.append(self.src_tokenizer.decode(text_chunk_ids))
                     text_chunk_ids = []
 
                 if skip_special_tokens and i in self.special_ids:
                     continue
-                schema.append(self._itos[i])
+                schema.append(self.index2token(i))
             else:
+                # pointer
                 position = i - self.vocab_size
                 if source_ids is not None:
                     text_chunk_ids.append(source_ids[position])
@@ -221,7 +233,7 @@ class TopSchemaTokenizer:
     def is_schema_token_id(self, i):
         """Checks if i correspond to the schema token or to the pointer token."""
         is_special_token = i in [self.pad_token_id, self.bos_token_id, self.eos_token_id]
-        return i < self.vocab_size and not is_special_token
+        return i >= self.max_pointer_len and not is_special_token
 
     def save(self, path, encoder_model_type=None):
         """

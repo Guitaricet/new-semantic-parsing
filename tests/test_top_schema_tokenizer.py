@@ -84,7 +84,7 @@ class TopSchemaTokenizerTest(unittest.TestCase):
         vocab = {"[", "]", "IN:", "INTENT1", "SL:", "SLOT1"}
         src_tokenizer = TransformersTokenizerMock()
 
-        tokenizer = TopSchemaTokenizer(vocab, src_tokenizer)
+        tokenizer = TopSchemaTokenizer(vocab, src_tokenizer, max_pointer_len=17)
 
         schema_str = "[IN:INTENT1 tok6,tok2 tok31 [SL:SLOT1 tok42 tok5 ] ]"
         source_tokens = [6, 2, 31, 42, 5]
@@ -100,7 +100,7 @@ class TopSchemaTokenizerTest(unittest.TestCase):
         vocab = ["[", "]", "IN:", "INTENT1", "SL:", "SLOT1"]
         src_tokenizer = TransformersTokenizerMock()
 
-        tokenizer = TopSchemaTokenizer(vocab, src_tokenizer)
+        tokenizer = TopSchemaTokenizer(vocab, src_tokenizer, max_pointer_len=17)
 
         schema_str = "[IN:INTENT1 tok6,tok2 tok31 [SL:SLOT1 tok42 tok5 ] ]"
         source_tokens = [TransformersTokenizerMock.cls_token_id, 6, 2, 31, 42, 5]
@@ -115,7 +115,7 @@ class TopSchemaTokenizerTest(unittest.TestCase):
         vocab = ["[", "]", "IN:", "INTENT1", "SL:", "SLOT1", "SLT1"]
         src_tokenizer = TransformersTokenizerMock()
 
-        tokenizer = TopSchemaTokenizer(vocab, src_tokenizer)
+        tokenizer = TopSchemaTokenizer(vocab, src_tokenizer, max_pointer_len=17)
 
         # i.e. SLOT1 after tok2 is just a token which is written exactly like a schema word
         schema_str = "[IN:INTENT1 tok6 tok2 SLT1 tok31 [SL:SLOT1 tok42 tok5 ] ]"
@@ -130,7 +130,7 @@ class TopSchemaTokenizerTest(unittest.TestCase):
         vocab = ["[", "]", "IN:", "INTENT1", "SL:", "SLOT1"]
         src_tokenizer = TransformersTokenizerMock()
 
-        tokenizer = TopSchemaTokenizer(vocab, src_tokenizer)
+        tokenizer = TopSchemaTokenizer(vocab, src_tokenizer, max_pointer_len=17)
 
         schema_str = "[IN:INTENT1 tok6,tok2 tok31 [SL:SLOT1 tok42 tok5 ] ]"
         source_tokens = [6, 2, 31, 42, 5]
@@ -159,7 +159,7 @@ class TopSchemaTokenizerTest(unittest.TestCase):
         vocab = {"[", "]", "IN:", "INTENT1", "SL:", "SLOT1"}
         src_tokenizer = TransformersTokenizerMock()
 
-        tokenizer = TopSchemaTokenizer(vocab, src_tokenizer)
+        tokenizer = TopSchemaTokenizer(vocab, src_tokenizer, max_pointer_len=17)
 
         schema_str = "[IN:INTENT1 tok6 tok2 tok31 [SL:SLOT1 tok42 tok5 ] ]"
         source_tokens = [6, 2, 31, 42, 5]
@@ -175,7 +175,7 @@ class TopSchemaTokenizerTest(unittest.TestCase):
         vocab = {"[", "]", "IN:", "INTENT1", "SL:", "SLOT1"}
         src_tokenizer = TransformersTokenizerMock()
 
-        tokenizer = TopSchemaTokenizer(vocab, src_tokenizer)
+        tokenizer = TopSchemaTokenizer(vocab, src_tokenizer, max_pointer_len=17)
 
         schema_str = "[IN:INTENT1 @ptr0 @ptr1 @ptr2 [SL:SLOT1 @ptr3 @ptr4 ] ]"
         # note that TransformersTokenizerMock splits tok6,tok2 into two subtokens

@@ -165,14 +165,16 @@ class PointerDatasetTest(unittest.TestCase):
 
     def test_get_frequencies(self):
         vocab = ["3", "4", "5"]  # + PAD, BOS, EOS
-        tokenizer = nsp.TopSchemaTokenizer(vocab, None)
+        max_pointer_len = 10
+        tokenizer = nsp.TopSchemaTokenizer(vocab, None, max_pointer_len=max_pointer_len)
 
         # The test relies on this
-        assert tokenizer.pad_token_id == 0
-        assert tokenizer.bos_token_id == 1
-        assert tokenizer.eos_token_id == 2
+        # assert tokenizer.pad_token_id == 10
+        # assert tokenizer.bos_token_id == 11
+        # assert tokenizer.eos_token_id == 12
 
-        tgt_tensors = [[1, 2, 3, 4, 100], [1, 101, 2, 3], [5, 100, 100], [3, 2]]
+        # all numbers below max_pointer_len should be ignored
+        tgt_tensors = [[10, 12, 13, 14, 6], [10, 1, 12, 13], [15, 0, 0], [13, 12]]
         expected_frequencies = {
             "3": 3 / 5.0,
             "4": 1 / 5.0,

@@ -13,7 +13,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 # =============================================================================
-"""Encoder-decoder with pointer model as in arxiv.org/abs/2001.11458"""
+"""Encoder-decoder with pointer model as in arxiv.org/abs/2001.11458
+
+supports EWC, layer freezing and adding new classes
+"""
 import sys
 import logging
 from copy import deepcopy
@@ -144,6 +147,8 @@ class EncoderDecoderWPointerModel(transformers.PreTrainedModel):
         self.initial_params = None
         if use_ewc or self.config.move_norm is not None:
             self.reset_initial_params()  # set initial_params
+
+        self.should_update_optimizer = False  # used in expand_output_vocab
 
     def load_state_dict(self, state_dict, strict: bool = ...):
         # NOTE: not sure if we need this function
@@ -437,6 +442,12 @@ class EncoderDecoderWPointerModel(transformers.PreTrainedModel):
 
         return (loss, combined_logits) + decoder_outputs + encoder_outputs
 
+    def backward(self):
+        if self.should_update_optimizer:
+            logger.warning("You have probably forgot to update optimizer after .expand_output_vocab")
+
+        super().backward()
+
     def _compute_loss(self, input, target, mask):
         input = input.view(-1, input.shape[-1])
         target = target.view(-1)
@@ -617,3 +628,61 @@ class EncoderDecoderWPointerModel(transformers.PreTrainedModel):
             n_params += p.numel()
 
         return reg
+
+    def expand_output_vocab(self, expand_by, reuse_weights=True, init_type="random"):
+        """Expands logit network output size and decoder embeddings vocab size
+
+        Args:
+            expand_by: int, now many rows/embeddings to add
+            reuse_weights: use the current lm_head weights and embeddings instead of initializing from scratch
+            init_type: "random" or "zeros"
+        """
+        if init_type not in ["random", "zeros"]:
+            raise ValueError(f"init_type {init_type} not supported")
+
+        # Part 1: extend lm_head
+
+        # NOTE: lm_head is the following network:
+        # Sequential[Linear(hidden, hidden), Activation(), LayerNorm(), Linear(hidden, vocab_size)]
+        old_vocab_size = self.output_vocab_size
+        new_vocab_size = old_vocab_size + expand_by
+        hidden_size = self.lm_head.decoder.in_features
+
+        logger.info(f"Changing vocab size from {old_vocab_size} to {new_vocab_size}")
+        logger.info("Remember to reconfigure optimizer!")
+
+        new_lm_head_out_proj = nn.Linear(hidden_size, new_vocab_size, bias=False)
+        new_lm_head_out_proj_bias = torch.zeros(new_vocab_size, requires_grad=True)
+
+        if init_type == "zeros":
+            nn.init.zeros_(new_lm_head_out_proj.weight)
+
+        if reuse_weights:
+            old_lm_head_out_proj = self.lm_head.decoder  # just a linear layer
+            new_lm_head_out_proj.weight[:old_vocab_size, :] = old_lm_head_out_proj.weight
+            new_lm_head_out_proj_bias[:old_vocab_size] = self.lm_head.bias
+
+        self.lm_head.decoder = new_lm_head_out_proj
+        self.lm_head.bias.data = new_lm_head_out_proj_bias
+        logger.info("Extended output logit layer")
+
+        self.should_update_optimizer = True
+        self.output_vocab_size = new_vocab_size
+
+        # Part 2: extend decoder embeddings
+        decoder_embeds: nn.Embedding = self.decoder.embeddings.word_embeddings
+
+        # old_decoder_embed_vocab_size is different from lm_head vocab size because of the pointer embeddings
+        old_decoder_embed_vocab_size = decoder_embeds.num_embeddings
+        new_decoder_embed_vocab_size = old_decoder_embed_vocab_size + expand_by
+        # TODO: change pre-processing, so that embeddings start from the pointer embeddings and end with vocab
+        new_decoder_embeds = nn.Embedding(new_decoder_embed_vocab_size, decoder_embeds.embedding_dim)
+
+        if init_type == "zeros":
+            nn.init.zeros_(new_decoder_embeds.weight)
+
+        if reuse_weights:
+            new_decoder_embeds.weight[:old_decoder_embed_vocab_size, :] = decoder_embeds.weight
+
+        self.decoder.embeddings.word_embeddings = new_decoder_embeds
+        logger.info("Extended decoder input embeds")

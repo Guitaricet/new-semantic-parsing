@@ -621,3 +621,32 @@ class EncoderDecoderWPointerTest(unittest.TestCase):
 
         reg = new_model._get_weight_consolidation()
         self.assertTrue(reg > 0)
+
+    def test_expand_output_vocab(self):
+        src_vocab_size = 23
+        tgt_vocab_size = 17
+        max_src_len = 7
+        expand_by = 3
+
+        model = EncoderDecoderWPointerModel.from_parameters(
+            layers=1,
+            hidden=32,
+            heads=2,
+            src_vocab_size=src_vocab_size,
+            tgt_vocab_size=tgt_vocab_size,
+            max_src_len=max_src_len,
+            dropout=0,
+            track_grad_square=True,
+        )
+
+        model.expand_output_vocab(expand_by=expand_by, reuse_weights=True, init_type="zeros")
+
+        self.assertTrue(model.output_vocab_size == tgt_vocab_size + expand_by)
+        self.assertTrue(model.decoder.embeddings.word_embeddings.num_embeddings == tgt_vocab_size + max_src_len + expand_by)
+
+        all_named_parameters = [k for k, v in model.named_parameters()]
+        self.assertTrue("decoder.embeddings.word_embeddings.weight" in all_named_parameters)
+        self.assertTrue("lm_head.decoder.weight" in all_named_parameters)
+        self.assertTrue("lm_head.bias" in all_named_parameters)
+        self.assertTrue("lm_head.decoder.bias" not in all_named_parameters)
+        assert True

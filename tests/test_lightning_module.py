@@ -38,7 +38,9 @@ class LightningModuleTest(unittest.TestCase):
             "DATE_TIME_DEPARTURE",
             "GET_ESTIMATED_ARRIVAL",
         }
-        self.schema_tokenizer = TopSchemaTokenizer(vocab, src_tokenizer)
+        max_src_len = 100_000
+
+        self.schema_tokenizer = TopSchemaTokenizer(vocab, src_tokenizer, max_pointer_len=max_src_len)
 
         self.model = EncoderDecoderWPointerModel.from_parameters(
             layers=2,
@@ -46,7 +48,7 @@ class LightningModuleTest(unittest.TestCase):
             heads=2,
             src_vocab_size=src_tokenizer.vocab_size,
             tgt_vocab_size=self.schema_tokenizer.vocab_size,
-            max_src_len=17,
+            max_src_len=max_src_len,
             dropout=0.1,
         )
 
