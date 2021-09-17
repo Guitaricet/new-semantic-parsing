@@ -49,55 +49,6 @@ python cli/train.py \
   --seed 1 \
 
 
-TAG="$SET_NAME"_"$DATE"_replay
-
-for old_data_amount in 0.0 0.05 0.1 0.2 0.5 0.7 1.0
-do
-
-    rm -rf $FINETUNED
-
-    python cli/retrain.py \
-      --data-dir $DATA \
-      --model-dir $MODEL \
-      --batch-size $BATCH_SIZE \
-      --dropout 0.2 \
-      --epochs 50 \
-      --early-stopping 10 \
-      --log-every 100 \
-      --new-data-amount 1.0 \
-      --old-data-amount $old_data_amount \
-      --new-classes $CLASSES \
-      --tags finetune,$TAG \
-      --output-dir $FINETUNED \
-      --old-data-sampling-method merge_subset \
-
-done
-
-TAG="$SET_NAME"_"$DATE"_sample
-
-for old_data_amount in 0.0 0.05 0.1 0.2 0.5 0.7 1.0
-do
-
-    rm -rf $FINETUNED
-
-    python cli/retrain.py \
-      --data-dir $DATA \
-      --model-dir $MODEL \
-      --batch-size $BATCH_SIZE \
-      --dropout 0.2 \
-      --epochs 50 \
-      --early-stopping 10 \
-      --log-every 100 \
-      --new-data-amount 1.0 \
-      --old-data-amount $old_data_amount \
-      --new-classes $CLASSES \
-      --tags finetune,$TAG \
-      --output-dir $FINETUNED \
-      --old-data-sampling-method sample \
-
-done
-
-
 TAG="$SET_NAME"_"$DATE"_ewc_replay
 
 for old_data_amount in 0.0 0.05 0.1 0.2 0.5 0.7 1.0
@@ -153,6 +104,53 @@ do
 
 done
 
+TAG="$SET_NAME"_"$DATE"_replay
+
+for old_data_amount in 0.0 0.05 0.1 0.2 0.5 0.7 1.0
+do
+
+    rm -rf $FINETUNED
+
+    python cli/retrain.py \
+      --data-dir $DATA \
+      --model-dir $MODEL \
+      --batch-size $BATCH_SIZE \
+      --dropout 0.2 \
+      --epochs 50 \
+      --early-stopping 10 \
+      --log-every 100 \
+      --new-data-amount 1.0 \
+      --old-data-amount $old_data_amount \
+      --new-classes $CLASSES \
+      --tags finetune,$TAG \
+      --output-dir $FINETUNED \
+      --old-data-sampling-method merge_subset \
+
+done
+
+TAG="$SET_NAME"_"$DATE"_sample
+
+for old_data_amount in 0.0 0.05 0.1 0.2 0.5 0.7 1.0
+do
+
+    rm -rf $FINETUNED
+
+    python cli/retrain.py \
+      --data-dir $DATA \
+      --model-dir $MODEL \
+      --batch-size $BATCH_SIZE \
+      --dropout 0.2 \
+      --epochs 50 \
+      --early-stopping 10 \
+      --log-every 100 \
+      --new-data-amount 1.0 \
+      --old-data-amount $old_data_amount \
+      --new-classes $CLASSES \
+      --tags finetune,$TAG \
+      --output-dir $FINETUNED \
+      --old-data-sampling-method sample \
+
+done
 
 TAG="$SET_NAME"_"$DATE"_move_norm
 

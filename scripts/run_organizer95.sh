@@ -3,7 +3,7 @@ cd ..
 
 
 SET_NAME=organizer_95
-DATE=Jan9
+DATE=Jan10
 CLASSES=SL:ORGANIZER_EVENT
 
 DATA=data-bin/"$SET_NAME"_"$DATE"
@@ -74,11 +74,10 @@ done
 
 TAG="$SET_NAME"_"$DATE"_ewc_replay
 
-for old_data_amount in 0.0 0.05 0.1 0.2 0.5
+for old_data_amount in 0.7 1.0
 do
 
-for ewc in 100 1000
-do
+    ewc=100
 
     rm -rf output_dir/finetuned
 
@@ -185,9 +184,9 @@ done
 done
 
 
-TAG="$SET_NAME"_"$DATE"_move_norm_fixed
+TAG="$SET_NAME"_"$DATE"_move_norm
 
-for old_data_amount in 0.0 0.05 0.1 0.2 0.5
+for old_data_amount in 0.0 0.05 0.1 0.2 0.5 0.7 1.0
 do
 
 for move_norm in 0.01 0.1

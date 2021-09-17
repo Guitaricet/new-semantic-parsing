@@ -30,7 +30,7 @@ import torch
 import wandb
 
 
-from new_semantic_parsing import data,  PointerModule
+from new_semantic_parsing import data, PointerModule
 
 
 logging.basicConfig(

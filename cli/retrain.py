@@ -229,10 +229,12 @@ def load_data(path, new_data_amount, old_data_amount, old_data_sampling_method):
         if old_data_sampling_method == nsp.dataclasses.SamplingMethods.merge_subset:
             old_data_subset = utils.make_subset(datasets["train_dataset"], old_data_amount)
             train_subset = torch.utils.data.ConcatDataset([train_subset, old_data_subset])
+
         elif old_data_sampling_method == nsp.dataclasses.SamplingMethods.sample:
             train_subset = nsp.data.SampleConcatSubset(
                 train_subset, datasets["train_dataset"], old_data_amount
             )
+
         else:
             raise ValueError(old_data_sampling_method)
 

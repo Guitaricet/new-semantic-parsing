@@ -48,7 +48,7 @@ python cli/train.py \
 TAG="$SET_NAME"_"$DATE"_bert_run_ewc_find
 
 
-for old_data_amount in 0.0 0.01 0.05 0.1 0.15 0.2 0.3 0.5 0.7 1.0
+for old_data_amount in 0.0 0.05 0.1 0.15 0.2 0.3 0.5 0.7 1.0
 do
 
 for ewc in 1000000000 1000000 1000 0

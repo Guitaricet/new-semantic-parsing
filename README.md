@@ -6,7 +6,9 @@ In this work we study how to efficiently add new data to a semantic parsing mode
 Experiments include finetuning on new data, finetuning with subsampling from the old data and regularization techniques
 that improve the final preformance of the model and/or reduce the need of using large amounts of old data.
 
-### Installation
+Paper: Update Frequently, Update Fast: Retraining Semantic Parsing Systems in a Fraction of Time, https://arxiv.org/abs/2010.07865
+
+## Installation
 
 To work with the repository you need to install required packages and this package.
 Edit (-e) mode is perferred if you want to change the code.
@@ -16,7 +18,7 @@ pip install -r requirements.txt
 pip install -e .
 ```
 
-### Usage
+## Downloading data
 
 `scripts/download_data.sh` downloads TOP and SNIPS datasets.
 It also reformats SNIPS into TOP format.
@@ -27,10 +29,34 @@ It also reformats SNIPS into TOP format.
 sh scripts/download_data.sh
 ```
 
+## Usage (class-incremental scenario)
+
+First, use `notebooks/17_top_multiple_splits.ipynb` to split TOP data into multiple class-incremental chunks (about 46 of them).
+It will create a folder `data/top_incremental` with files `batch_0.csv`, ..., `batch_46.csv`.
+
+Then, execute pre-processing script
+
+```bash
+OUTPUT_PREFIX=data-bin/top_incremental
+
+for file_name in data/top-incremental/*.csv ; do
+    echo "Pre-processing $file_name"
+done
+
+    python cli/preprocess.py \
+      --data data/top-dataset-semantic-parsing \
+      --text-tokenizer bert-base-cased \
+      --split-amount 0.9 \
+      --output-dir OUTPUT_PREFIX/ \
+
+done
+```
+
+## Usage (data-incremental scenario)
+
 Preprocess script splits train set into pretrain and finetune parts, creates tokenizers, numericalizes the data and saves in to `--output-dir` folder.
 
 ```bash
-
 # preprocess
 
 DATA=data-bin/top_dataset
@@ -91,6 +117,3 @@ python cli/retrain.py \
 ## Run scripts
 
 You can find more usage examples in the `scripts` directory.
-
-## Disclaimer
-This is not an officially supported Google product

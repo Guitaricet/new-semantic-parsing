@@ -21,7 +21,6 @@ import numpy as np
 import pandas as pd
 from tqdm import tqdm
 
-from new_semantic_parsing import config
 from new_semantic_parsing.dataclasses import InputDataClass, List, Tensor, PairItem
 from new_semantic_parsing.schema_tokenizer import TopSchemaTokenizer
 from new_semantic_parsing.utils import get_src_pointer_mask, make_subset

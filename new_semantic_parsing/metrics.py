@@ -377,8 +377,8 @@ def get_tree_path_scores(pred_tokens, true_tokens, classes=None, verbose=False):
             n_expected += len(true_paths)
             n_predicted += len(pred_paths)
         else:
-            n_expected += len([p for p in true_paths if any(c in p for c in classes)])
-            n_predicted += len([p for p in pred_paths if any(c in p for c in classes)])
+            n_expected += len([p for p in true_paths.keys() if any(class_in_path(c, p) for c in classes)])
+            n_predicted += len([p for p in pred_paths.keys() if any(class_in_path(c, p) for c in classes)])
 
         true_positives += _get_tree_path_matches(pred_paths, true_paths, classes)
 
@@ -458,7 +458,9 @@ def _get_tree_path_matches(pred_tree_paths, true_tree_paths, classes=None):
 
 
 def compute_metrics_from_batch(predictions, labels, masks, stop_tokens):
-    """Computes metrics where all predictions, labels and masks are torch.tensor"""
+    """Computes accuracy, exact match and first intent precision
+     where all predictions, labels and masks are torch.tensor
+     """
     device = predictions.device
 
     # correct tokens which are not masked (masked tokens have mask == 0)
@@ -582,3 +584,27 @@ def get_outliers_metrics(
         f"relative_{suffix}": rel_delta_overall,
     }
     return res
+
+
+def class_in_path(class_name, path_str):
+    """
+    Checks if the class of interest is in the tree path
+
+    Note that the path is supposed to have the nodes separated by "."-symbol.
+    The main issue this function addresses is ambiguous cases, e.g.
+    SL:PATH vs SL:PATH_AVOID
+
+    Args:
+        class_name: str, e.g. SL:PATH
+        path_str: str, e.g. IN:GET_ESTIMATED_DEPARTURE.SL:SOURCE
+
+    Returns:
+        True if the class in the tree path, else otherwise
+    """
+    # "DEPARTURE." in "IN:DEPARTURE.SL:SOURCE" case
+    class_in_the_middle = (class_name + ".") in path_str
+
+    # "IN:DEPARTURE.SL:SOURCE".endswith("SOURCE") case
+    class_in_the_end = path_str.endswith(class_name)
+
+    return class_in_the_middle or class_in_the_end
