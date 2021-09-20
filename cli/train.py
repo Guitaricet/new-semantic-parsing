@@ -140,6 +140,8 @@ def parse_args(args=None):
                         help="Only used for logging, amount of data that was removed from the training set")
     parser.add_argument("--alert-em", default=0.7, type=float,
                         help="use wandb alert if the final exact match is below this value")
+    parser.add_argument("--cl-iteration", default=0, type=int,
+                        help="used to log the cl batch number, useful for plotting learning curves")
 
     # fmt: on
 

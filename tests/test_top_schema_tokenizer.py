@@ -81,7 +81,7 @@ class TopSchemaTokenizerTest(unittest.TestCase):
         self.assertSequenceEqual(tokens, schema_tok)
 
     def test_encode_nocls(self):
-        vocab = {"[", "]", "IN:", "INTENT1", "SL:", "SLOT1"}
+        vocab = ["[", "]", "IN:", "INTENT1", "SL:", "SLOT1"]
         src_tokenizer = TransformersTokenizerMock()
 
         tokenizer = TopSchemaTokenizer(vocab, src_tokenizer)
@@ -89,9 +89,8 @@ class TopSchemaTokenizerTest(unittest.TestCase):
         schema_str = "[IN:INTENT1 tok6,tok2 tok31 [SL:SLOT1 tok42 tok5 ] ]"
         source_tokens = [6, 2, 31, 42, 5]
         # note that TransformersTokenizerMock splits tok6,tok2 into two subtokens
-        # note that the vocabulary is sorted
         # fmt: off
-        expected_ids = [tokenizer.bos_token_id, 7, 3, 4, 9, 10, 11, 7, 5, 6, 12, 13, 8, 8, tokenizer.eos_token_id]
+        expected_ids = [tokenizer.bos_token_id, 3, 5, 6, 9, 10, 11, 3, 7, 8, 12, 13, 4, 4, tokenizer.eos_token_id]
         # fmt: on
         ids = tokenizer.encode(schema_str, source_tokens)
         self.assertSequenceEqual(ids, expected_ids)
@@ -106,7 +105,7 @@ class TopSchemaTokenizerTest(unittest.TestCase):
         source_tokens = [TransformersTokenizerMock.cls_token_id, 6, 2, 31, 42, 5]
         # note that TransformersTokenizerMock splits tok6,tok2 into two subtokens
         # fmt: off
-        expected_ids = [tokenizer.bos_token_id, 7, 3, 4, 10, 11, 12, 7, 5, 6, 13, 14, 8, 8, tokenizer.eos_token_id]
+        expected_ids = [tokenizer.bos_token_id, 3, 5, 6, 10, 11, 12, 3, 7, 8, 13, 14, 4, 4, tokenizer.eos_token_id]
         # fmt: on
         ids = tokenizer.encode(schema_str, source_tokens)
         self.assertSequenceEqual(ids, expected_ids)
@@ -121,7 +120,7 @@ class TopSchemaTokenizerTest(unittest.TestCase):
         schema_str = "[IN:INTENT1 tok6 tok2 SLT1 tok31 [SL:SLOT1 tok42 tok5 ] ]"
         source_tokens = [6, 2, 1, 31, 42, 5]
         # fmt: off
-        expected_ids = [tokenizer.bos_token_id, 8, 3, 4, 10, 11, 12, 13, 8, 5, 6, 14, 15, 9, 9, tokenizer.eos_token_id]
+        expected_ids = [tokenizer.bos_token_id, 3, 5, 6, 10, 11, 12, 13, 3, 7, 8, 14, 15, 4, 4, tokenizer.eos_token_id]
         # fmt: on
         ids = tokenizer.encode(schema_str, source_tokens)
         self.assertSequenceEqual(ids, expected_ids)
@@ -156,7 +155,7 @@ class TopSchemaTokenizerTest(unittest.TestCase):
         self.assertSequenceEqual(ids, new_ids)
 
     def test_decode(self):
-        vocab = {"[", "]", "IN:", "INTENT1", "SL:", "SLOT1"}
+        vocab = ["[", "]", "IN:", "INTENT1", "SL:", "SLOT1"]
         src_tokenizer = TransformersTokenizerMock()
 
         tokenizer = TopSchemaTokenizer(vocab, src_tokenizer)
@@ -164,23 +163,21 @@ class TopSchemaTokenizerTest(unittest.TestCase):
         schema_str = "[IN:INTENT1 tok6 tok2 tok31 [SL:SLOT1 tok42 tok5 ] ]"
         source_tokens = [6, 2, 31, 42, 5]
         # note that TransformersTokenizerMock splits tok6,tok2 into two subtokens
-        # note that the vocabulary is sorted
-        expected_ids = [7, 3, 4, 9, 10, 11, 7, 5, 6, 12, 13, 8, 8]
+        expected_ids = [3, 5, 6, 9, 10, 11, 3, 7, 8, 12, 13, 4, 4]
 
         schema_decoded = tokenizer.decode(expected_ids, source_tokens)
 
         self.assertEqual(schema_str, schema_decoded)
 
     def test_decode_wpointers(self):
-        vocab = {"[", "]", "IN:", "INTENT1", "SL:", "SLOT1"}
+        vocab = ["[", "]", "IN:", "INTENT1", "SL:", "SLOT1"]
         src_tokenizer = TransformersTokenizerMock()
 
         tokenizer = TopSchemaTokenizer(vocab, src_tokenizer)
 
         schema_str = "[IN:INTENT1 @ptr0 @ptr1 @ptr2 [SL:SLOT1 @ptr3 @ptr4 ] ]"
         # note that TransformersTokenizerMock splits tok6,tok2 into two subtokens
-        # note that the vocabulary is sorted
-        ids = [7, 3, 4, 9, 10, 11, 7, 5, 6, 12, 13, 8, 8]
+        ids = [3, 5, 6, 9, 10, 11, 3, 7, 8, 12, 13, 4, 4]
 
         schema_decoded = tokenizer.decode(ids)
 

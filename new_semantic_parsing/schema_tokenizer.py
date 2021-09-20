@@ -66,15 +66,18 @@ class TopSchemaTokenizer:
 
     def __init__(self, schema_vocab, src_text_tokenizer: transformers.PreTrainedTokenizer):
         """
-        :param schema_vocab: iterable with all schema tokens (not source text tokens)
+        :param schema_vocab: list with all schema tokens (not source text tokens)
         :param src_text_tokenizer: transformers.PreTrainedTokenizer object
         """
         self.pad_token = "[PAD]"
         self.bos_token = "[BOS]"
         self.eos_token = "[EOS]"
 
-        self.vocab = schema_vocab
-        self._itos = [self.pad_token, self.bos_token, self.eos_token] + sorted(schema_vocab)
+        if not isinstance(schema_vocab, list):
+            raise ValueError("Class-incremental setup requires schema vocab order ordered as in vocab.txt")
+
+        self.vocab = set(schema_vocab)
+        self._itos = [self.pad_token, self.bos_token, self.eos_token] + schema_vocab
         self._stoi = {s: i for i, s in enumerate(self._itos)}
 
         self.src_tokenizer = src_text_tokenizer
@@ -231,7 +234,7 @@ class TopSchemaTokenizer:
         os.makedirs(path, exist_ok=True)
 
         with open(path_join(path, "schema_vocab.txt"), "w") as f:
-            f.write("\n".join(self.vocab))
+            f.write("\n".join(self._itos[3:]))  # the first three are the special tokens
 
         self.src_tokenizer.save_pretrained(path)
 
@@ -244,7 +247,7 @@ class TopSchemaTokenizer:
     @classmethod
     def load(cls, path: str):
         with open(path_join(path, "schema_vocab.txt")) as f:
-            schema_vocab = set(f.read().strip("\n").split("\n"))
+            schema_vocab = f.read().strip("\n").split("\n")
 
         if not os.path.exists(path_join(path, "config.json")):
             raise RuntimeError(

@@ -105,7 +105,7 @@ def get_required_example_ids(schema_vocab, train_data):
 
     for i, row in train_data.iterrows():
         add_this = False
-        tokens_not_present = schema_vocab.difference(required_schema_vocab)
+        tokens_not_present = [w for w in schema_vocab if w not in required_schema_vocab]
 
         # Add the example id to required_example_ids if the example
         # contains a schema token not present in the required_schema_vocab
@@ -117,10 +117,11 @@ def get_required_example_ids(schema_vocab, train_data):
         if add_this:
             required_example_ids.add(i)
 
-        if required_schema_vocab == schema_vocab:
+        if sorted(required_schema_vocab) == sorted(schema_vocab):
             break
     else:
-        raise RuntimeError("Full vocabulary was not found in the training set")
+        raise RuntimeError(f"Full vocabulary was not found in the training set. "
+                           f"tokens_not_present: {tokens_not_present}")
 
     return required_example_ids
 

@@ -12,7 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 # =============================================================================
-"""Preprocess text data and save binary Dataset objects along with tokenizers to a directory."""
+"""Preprocess text data and save binary Dataset objects along with tokenizers to a directory.
+
+Should NOT be used for class-incremental scenario, because of arbitrary vocabulary order.
+"""
 
 import os
 import sys
@@ -142,7 +145,8 @@ def main(args):
     full_train_data_size = len(train_data)  # used to check the train/finetune split
     finetune_data, finetune_path = None, None
 
-    schema_vocab = reduce(set.union, map(utils.get_vocab_top_schema, train_data.schema))
+    # NOTE: Do not use this for class-incremental scenario, where vocab order is important
+    schema_vocab = list(reduce(set.union, map(utils.get_vocab_top_schema, train_data.schema)))
 
     if args.split_amount is not None:
         # finetune part is not used by train script, but used by retrain script
@@ -164,10 +168,11 @@ def main(args):
     logger.info("Getting schema vocabulary")
 
     if args.split_amount is not None:
-        finetune_schema_vocab = reduce(
+        # NOTE: Do not use this for class-incremental scenario, where vocab order is important
+        finetune_schema_vocab = list(reduce(
             set.union, map(utils.get_vocab_top_schema, finetune_data.schema)
-        )
-        vocab_delta = finetune_schema_vocab - schema_vocab
+        ))
+        vocab_delta = set(finetune_schema_vocab) - set(schema_vocab)
         if len(vocab_delta) > 0:
             logger.warning(
                 f"Finetuning subset contains vocabulary elements not from the training subset"

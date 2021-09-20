@@ -33,10 +33,6 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-file_handler = logging.FileHandler("debug.log")
-file_handler.setLevel(logging.DEBUG)
-logger.addHandler(file_handler)
-
 
 LBR = "["
 RBR = "]"

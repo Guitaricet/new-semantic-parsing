@@ -25,11 +25,13 @@ import pprint
 import logging
 import argparse
 import tempfile
+from pathlib import Path
 from os.path import join as path_join
 
 import toml
 import torch
 import wandb
+import torch.utils.data
 
 import new_semantic_parsing as nsp
 import new_semantic_parsing.dataclasses
@@ -59,8 +61,9 @@ def parse_args(args=None):
 
     # data
     parser.add_argument("--data-dir", required=True,
-                        help="Path to preprocess.py --save-dir containing tokenizer, "
-                             "data.pkl, and args.toml")
+                        help="Path to preprocess.py --save-dir containing directories batch_0, batch_1, ...."
+                             "Each directory should contain tokenizer, data.pkl, and args.toml. "
+                             "Use notebooks/17_top_multiple_splits.ipynb to create it.")
     parser.add_argument("--output-dir", default=None,
                         help="Directory to store checkpoints and other output files")
     parser.add_argument("--eval-data-amount", default=1., type=float,
@@ -77,12 +80,14 @@ def parse_args(args=None):
                         help="how to sample from old data")
     parser.add_argument("--average-checkpoints", default=False, action="store_true")
     parser.add_argument("--new-model-weight", default=0.5, type=float)
+    parser.add_argument("--cl-iteration", required=True, type=int,
+                        help="used to select the batch directory from --data-dir, "
+                             "also useful for plotting learning curves")
 
     # model
     parser.add_argument("--model-dir", required=True,
-                        help="Model directory containing 1) checkpoint loadable via "
-                             "EncoderDecoderWPointerModel.from_pretrained and "
-                             "2) tokenizer directory")
+                        help="Model directory containing checkpoint loadable via "
+                             "EncoderDecoderWPointerModel.from_pretrained")
 
     # training
     parser.add_argument("--epochs", default=1, type=int)
@@ -120,6 +125,9 @@ def parse_args(args=None):
                         help="Keep learning rate constant instead of scheduling it. Only works with retrain_simple.")
     parser.add_argument("--weight-consolidation", default=None, type=float,
                         help="Weight consolidation regularization strength.")
+    parser.add_argument("--dynamic-weight-consolidation", default=False, action="store_true",
+                        help="Dynamically selects weight consolidation strength as in "
+                             "https://aclanthology.org/2021.naacl-main.212/")
 
     # --- freezing
     parser.add_argument("--freeze-encoder", default=None, type=int,
@@ -146,8 +154,6 @@ def parse_args(args=None):
     parser.add_argument("--clean-output", default=False, action="store_true")
     parser.add_argument("--split-amount-finetune", default=None, type=float,
                         help="Only used for logging, amount of data that was removed from the training set")
-    parser.add_argument("--cl-iteration", default=0, type=int,
-                        help="used to log the cl batch number, useful for plotting learning curves")
 
     # fmt: on
 
@@ -199,42 +205,39 @@ def check_args(args):
         raise ValueError("--no-lr-scheduler is not supported, use retrain_simple.py instead.")
 
 
-def load_tokenizer(model_dir, data_dir):
-    tokenizer_path1 = model_dir
-    tokenizer_path2 = path_join(data_dir, "tokenizer")
-
-    if os.path.exists(path_join(tokenizer_path1, "schema_vocab.txt")):
-        return nsp.TopSchemaTokenizer.load(tokenizer_path1)
-
-    if os.path.exists(tokenizer_path2):
-        return nsp.TopSchemaTokenizer.load(tokenizer_path2)
-
-    raise ValueError("Tokenizer is not found in both --model-dir and --data-dir.")
-
-
 def load_data(path, new_data_amount, old_data_amount, old_data_sampling_method):
     datasets = torch.load(path)
-    finetune_dataset: nsp.PointerDataset = datasets["finetune_dataset"]
-    if finetune_dataset is None:
-        raise RuntimeError("Datafile provided does not contain finetune_dataset.")
+    train_subset: nsp.PointerDataset = datasets["train_dataset"]
+    eval_dataset: nsp.PointerDataset = datasets["test_dataset"]
 
-    eval_dataset: nsp.PointerDataset = datasets["valid_dataset"]
-
-    train_subset = finetune_dataset
-    if new_data_amount is not None and new_data_amount < 1.0:
+    if new_data_amount is not None:
         train_subset = utils.make_subset(train_subset, new_data_amount)
 
     wandb.config.update({"num_new_data": len(train_subset)})
 
     if old_data_amount > 0:
+        # path looks like: data/directory/batch_42/data.pkl
+        batches_dir = path.parent.parent
+        current_batch_number = int(path.parent.as_posix().split("_")[-1])
+
+        if current_batch_number < 1:
+            raise RuntimeError("You should start fine-tuning with a batch >= 1. Use train.py for batch_0")
+
+        old_datasets = []
+        for old_batch_number in range(current_batch_number):
+            previous_batch_path = batches_dir / f"batch_{old_batch_number}" / "data.pkl"
+            previous_batch_data = torch.load(previous_batch_path)["train_dataset"]
+
+            old_datasets.append(previous_batch_data)
+
+        old_data = torch.utils.data.ConcatDataset(old_datasets)
+
         if old_data_sampling_method == nsp.dataclasses.SamplingMethods.merge_subset:
-            old_data_subset = utils.make_subset(datasets["train_dataset"], old_data_amount)
+            old_data_subset = utils.make_subset(old_data, old_data_amount)
             train_subset = torch.utils.data.ConcatDataset([train_subset, old_data_subset])
 
         elif old_data_sampling_method == nsp.dataclasses.SamplingMethods.sample:
-            train_subset = nsp.data.SampleConcatSubset(
-                train_subset, datasets["train_dataset"], old_data_amount
-            )
+            train_subset = nsp.data.SampleConcatSubset(train_subset, old_data, old_data_amount)
 
         else:
             raise ValueError(old_data_sampling_method)
@@ -249,6 +252,7 @@ def load_model(
     move_norm_p=None,
     label_smoothing=None,
     weight_consolidation=None,
+    new_vocab_size=None,
 ):
     """Load a trained model and override some model properties if specified."""
     model_config = nsp.EncoderDecoderWPointerConfig.from_pretrained(model_dir)
@@ -264,20 +268,14 @@ def load_model(
         model_config.weight_consolidation = weight_consolidation
 
     model = nsp.EncoderDecoderWPointerModel.from_pretrained(model_dir, config=model_config)
-    model.reset_initial_params()
+    model.reset_initial_params()  # w_0 from EWC
+
+    expand_by = new_vocab_size - model.output_vocab_size
+    if expand_by <= 0:
+        raise ValueError(expand_by)
+
+    model.expand_output_vocab(expand_by=expand_by, reuse_weights=True, init_type="random")
     return model
-
-
-def average_checkpoints(new_model, args, save_to):
-    old_model = load_model(
-        args.model_dir, args.dropout, args.move_norm, args.move_norm_p, args.label_smoothing
-    )
-    new_model = cli_utils.average_models(
-        old_model=old_model,
-        new_model=new_model,
-        new_model_weight=args.new_model_weight,
-    )
-    new_model.save_pretrained(save_to)
 
 
 def main(args):
@@ -292,9 +290,32 @@ def main(args):
     logger.info(f"Starting finetuning with args: \n{pprint.pformat(vars(args))}")
 
     logger.info("Loading tokenizers")
-    schema_tokenizer = load_tokenizer(args.model_dir, args.data_dir)
+    # from the current batch directory find the previous batch directory
+    # and compare current tokenizer with the previous one
+    data_dir_path = Path(args.data_dir)
+    batches_dir = data_dir_path.parent.parent
+    current_batch_number = int(data_dir_path.parent.as_posix().split("_")[-1])
+
+    tokenizer_path = data_dir_path / "tokenizer"
+    old_tokenizer_path = batches_dir / f"batch_{current_batch_number}" / "tokenizer"
+
+    if current_batch_number < 1:
+        raise RuntimeError("You should start fine-tuning with a batch >= 1. Use train.py for batch_0")
+
+    with open(old_tokenizer_path) as f:
+        old_tokenizer_schema_vocab = f.read().split("\n")
+
+    schema_tokenizer = nsp.TopSchemaTokenizer.load(path_join(tokenizer_path, "tokenizer"))
+    if schema_tokenizer.vocab_size <= len(old_tokenizer_schema_vocab):
+        raise ValueError("For class-incremental case, new vocab should be strictly larger than the previous vocab. "
+                         f"Got previous vocab size {len(old_tokenizer_schema_vocab)} and new vocab size {schema_tokenizer.vocab_size}")
+
+    if schema_tokenizer._itos[:len(old_tokenizer_schema_vocab)] != old_tokenizer_schema_vocab:
+        raise RuntimeError(f"Expected the next tokenizer to be incremental to the previous one, "
+                           f"but got old vocab: {old_tokenizer_schema_vocab}, new vocab {schema_tokenizer._itos}")
 
     logger.info("Loading data")
+    # load data and sample previous batches
     train_dataset, eval_dataset = load_data(
         path=path_join(args.data_dir, "data.pkl"),
         new_data_amount=args.new_data_amount,
@@ -315,6 +336,7 @@ def main(args):
         move_norm_p=args.move_norm_p,
         label_smoothing=args.label_smoothing,
         weight_consolidation=args.weight_consolidation,
+        new_vocab_size=schema_tokenizer.vocab_size,
     )
 
     logger.info("Preparing for training")
