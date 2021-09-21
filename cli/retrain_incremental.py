@@ -217,7 +217,7 @@ def load_data(path, new_data_amount, old_data_amount, old_data_sampling_method):
 
     if old_data_amount > 0:
         # path looks like: data/directory/batch_42/data.pkl
-        batches_dir = path.parent.parent
+        batches_dir = Path(path).parent.parent
         current_batch_number = int(path.parent.as_posix().split("_")[-1])
 
         if current_batch_number < 1:
