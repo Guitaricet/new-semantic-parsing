@@ -134,7 +134,7 @@ def parse_args(args=None):
                         help="do not use wandb, mainly used for testing")
     parser.add_argument("--log-every", default=100, type=int)
     parser.add_argument("--tags", default=None)
-    parser.add_argument("--device", default=None, type=int,
+    parser.add_argument("--device", default=None,
                         help="Device to train the model on, cuda if available by default")
     parser.add_argument("--split-amount-finetune", default=None, type=float,
                         help="Only used for logging, amount of data that was removed from the training set")
