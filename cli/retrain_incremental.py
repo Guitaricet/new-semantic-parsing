@@ -305,7 +305,7 @@ def main(args):
     with open(old_tokenizer_path / "schema_vocab.txt") as f:
         old_tokenizer_schema_vocab = f.read().split("\n")
 
-    schema_tokenizer = nsp.TopSchemaTokenizer.load(tokenizer_path)
+    schema_tokenizer = nsp.TopSchemaTokenizer.load(tokenizer_path.as_posix())
     if schema_tokenizer.vocab_size <= len(old_tokenizer_schema_vocab):
         raise ValueError("For class-incremental case, new vocab should be strictly larger than the previous vocab. "
                          f"Got previous vocab size {len(old_tokenizer_schema_vocab)} and new vocab size {schema_tokenizer.vocab_size}")
