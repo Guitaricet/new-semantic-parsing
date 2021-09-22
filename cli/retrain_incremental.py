@@ -310,7 +310,8 @@ def main(args):
         raise ValueError("For class-incremental case, new vocab should be strictly larger than the previous vocab. "
                          f"Got previous vocab size {len(old_tokenizer_schema_vocab)} and new vocab size {schema_tokenizer.vocab_size}")
 
-    if schema_tokenizer._itos[:len(old_tokenizer_schema_vocab)] != old_tokenizer_schema_vocab:
+    # the first 3 are special tokens and they are not saved
+    if schema_tokenizer._itos[3:len(old_tokenizer_schema_vocab) + 3] != old_tokenizer_schema_vocab:
         raise RuntimeError(f"Expected the next tokenizer to be incremental to the previous one, "
                            f"but got old vocab: {old_tokenizer_schema_vocab}, new vocab {schema_tokenizer._itos}")
 
