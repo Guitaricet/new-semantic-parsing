@@ -205,7 +205,7 @@ class Trainer:
         self.model.schema_tokenizer.save(checkpoint_dir)
 
     @classmethod
-    def load_optimizer_and_scheduler_states(cls, optimizer_and_scheduler, checkpoint_dir):
+    def load_optimizer_and_scheduler_states(cls, optimizer_and_scheduler, checkpoint_dir, only_scheduler=False):
         """Load the saved state into optimizer and lr scheduler
 
         Args:
@@ -219,8 +219,9 @@ class Trainer:
         optimizer, scheduler = cls._unpack_optimizer_and_scheduler(optimizer_and_scheduler)
         checkpoint = torch.load(os.path.join(checkpoint_dir, "trainer_checkpoint.ckpt"))
 
-        logger.info("Loading the optimizer state")
-        optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
+        if not only_scheduler:
+            logger.info("Loading the optimizer state")
+            optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
 
         if scheduler is not None:
             logger.info("Loading the scheduler")

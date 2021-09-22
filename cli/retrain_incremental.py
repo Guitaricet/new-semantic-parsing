@@ -382,8 +382,11 @@ def main(args):
         args.device
     )  # required to load optimizer state to the correct device
     optimizer_and_scheduler = lightning_module.configure_optimizers()
+    # Note: you cannot reuse optimizer state after expansion
     optimizer_and_scheduler = trainer.load_optimizer_and_scheduler_states(
-        optimizer_and_scheduler, args.model_dir
+        optimizer_and_scheduler,
+        args.model_dir,
+        only_scheduler=True,
     )
 
     # get evaluation metrics of the initial model
