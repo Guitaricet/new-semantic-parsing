@@ -302,7 +302,7 @@ def main(args):
 
     wandb.config.batch_number = current_batch_number
 
-    with open(old_tokenizer_path) as f:
+    with open(old_tokenizer_path / "schema_vocab.txt") as f:
         old_tokenizer_schema_vocab = f.read().split("\n")
 
     schema_tokenizer = nsp.TopSchemaTokenizer.load(path_join(tokenizer_path, "tokenizer"))
