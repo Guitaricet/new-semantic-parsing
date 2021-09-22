@@ -80,9 +80,6 @@ def parse_args(args=None):
                         help="how to sample from old data")
     parser.add_argument("--average-checkpoints", default=False, action="store_true")
     parser.add_argument("--new-model-weight", default=0.5, type=float)
-    parser.add_argument("--cl-iteration", required=True, type=int,
-                        help="used to select the batch directory from --data-dir, "
-                             "also useful for plotting learning curves")
 
     # model
     parser.add_argument("--model-dir", required=True,
@@ -301,6 +298,8 @@ def main(args):
 
     if current_batch_number < 1:
         raise RuntimeError("You should start fine-tuning with a batch >= 1. Use train.py for batch_0")
+
+    wandb.config.batch_number = current_batch_number
 
     with open(old_tokenizer_path) as f:
         old_tokenizer_schema_vocab = f.read().split("\n")
