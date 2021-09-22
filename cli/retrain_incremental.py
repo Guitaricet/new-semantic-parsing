@@ -215,8 +215,8 @@ def load_data(path, new_data_amount, old_data_amount, old_data_sampling_method):
 
     if old_data_amount > 0:
         # path looks like: data/directory/batch_42/data.pkl
-        batches_dir = path.parent
-        current_batch_number = int(path.as_posix().split("_")[-1])
+        batches_dir = path.parent.parent
+        current_batch_number = int(path.parent.as_posix().split("_")[-1])
 
         if current_batch_number < 1:
             raise RuntimeError("You should start fine-tuning with a batch >= 1. Use train.py for batch_0")
