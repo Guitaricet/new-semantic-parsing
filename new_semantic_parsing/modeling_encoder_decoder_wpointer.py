@@ -149,7 +149,9 @@ class EncoderDecoderWPointerModel(transformers.PreTrainedModel):
         if use_ewc or self.config.move_norm is not None:
             self.reset_initial_params()  # set initial_params
 
+        self.expanded_by = 0
         self.should_update_optimizer = False  # used in expand_output_vocab
+        self._old_schema_vocab_size = None  # used in get_move_norm if vocab has been expanded
 
     def load_state_dict(self, state_dict, strict: bool = ...):
         # NOTE: not sure if we need this function
@@ -535,6 +537,27 @@ class EncoderDecoderWPointerModel(transformers.PreTrainedModel):
 
         for n, p1 in self.named_parameters():
             p2 = self.initial_params[n]
+
+            if self.expanded_by != 0 and (
+                "lm_head.decoder.weight" in n or
+                "lm_head.bias" in n
+            ):
+                # p1, _ = p1.split([p1.shape[0] - self.expanded_by, self.expanded_by])
+                p1 = p1[:-self.expanded_by]
+
+            elif self.expanded_by != 0 and (
+                "decoder.embeddings.word_embeddings" in n
+            ):
+                p1_old_vocab = p1[:self._old_schema_vocab_size]
+                p1_pointer_emb = p1[-self.config.max_src_len:]
+
+                p1 = torch.cat([p1_old_vocab, p1_pointer_emb], dim=0)
+            #     norm += torch.dist(p1[:-self.expanded_by], p2, p=self.config.move_norm_p)
+            # elif self.expanded_by != 0 and (
+            #     "decoder.embeddings.word_embeddings" in n
+            # ):
+            #
+            # else:
             norm += torch.dist(p1, p2, p=self.config.move_norm_p)
             count += 1
 
@@ -630,6 +653,7 @@ class EncoderDecoderWPointerModel(transformers.PreTrainedModel):
 
         return reg
 
+    @torch.no_grad()
     def expand_output_vocab(self, expand_by, reuse_weights=True, init_type="random"):
         """Expands logit network output size and decoder embeddings vocab size
 
@@ -642,6 +666,7 @@ class EncoderDecoderWPointerModel(transformers.PreTrainedModel):
             raise ValueError(f"init_type {init_type} not supported")
 
         # Part 1: extend lm_head
+        self.expanded_by = expand_by
 
         # NOTE: lm_head is the following network:
         # Sequential[Linear(hidden, hidden), Activation(), LayerNorm(), Linear(hidden, vocab_size)]
@@ -676,9 +701,15 @@ class EncoderDecoderWPointerModel(transformers.PreTrainedModel):
 
         # old_decoder_embed_vocab_size is different from lm_head vocab size because of the pointer embeddings
         old_decoder_embed_vocab_size = decoder_embeds.num_embeddings
+        self._old_schema_vocab_size = old_decoder_embed_vocab_size - self.config.max_src_len
+
         new_decoder_embed_vocab_size = old_decoder_embed_vocab_size + expand_by
         # TODO: change pre-processing, so that embeddings start from the pointer embeddings and end with vocab
-        new_decoder_embeds = nn.Embedding(new_decoder_embed_vocab_size, decoder_embeds.embedding_dim)
+        new_decoder_embeds = nn.Embedding(
+            num_embeddings=new_decoder_embed_vocab_size,
+            embedding_dim=decoder_embeds.embedding_dim,
+            padding_idx=decoder_embeds.padding_idx,
+        )
 
         if init_type == "zeros":
             nn.init.zeros_(new_decoder_embeds.weight)
@@ -700,4 +731,22 @@ class EncoderDecoderWPointerModel(transformers.PreTrainedModel):
             new_decoder_embeds.weight[schema_vocab_size + expand_by:] = decoder_embeds.weight[schema_vocab_size:]
 
         self.decoder.embeddings.word_embeddings = new_decoder_embeds
+
+        # if self.initial_params is None:
+        #     logger.info("Extended decoder input embeds")
+        #     return
+        #
+        # # Part 3: extend initial params that are used to compute EWC
+        # initial_lm_head_weight = self.initial_params["lm_head.decoder.weight"]
+        # new_shape = initial_lm_head_weight.shape[0] + expand_by, initial_lm_head_weight.shape[1]
+        # new_initial_lm_head_weight = torch.randn(new_shape, requires_grad=False)
+        # new_initial_lm_head_weight[:initial_lm_head_weight.shape[0]] = initial_lm_head_weight
+        #
+        # self.initial_params.set("lm_head.decoder.weight", new_initial_lm_head_weight)
+        #
+        # initial_lm_head_weight = self.initial_params["lm_head.decoder.weight"]
+        # new_shape = initial_lm_head_weight.shape
+        # new_shape[0] = new_shape[0] + expand_by
+        # new_initial_lm_head_weight = torch.randn(new_shape)
+
         logger.info("Extended decoder input embeds")

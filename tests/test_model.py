@@ -621,3 +621,76 @@ class EncoderDecoderWPointerTest(unittest.TestCase):
 
         reg = new_model._get_weight_consolidation()
         self.assertTrue(reg > 0)
+
+    def test_expand_out_and_move_norm_update(self):
+        """Test that move norm affects optimization"""
+
+        src_vocab_size = 23
+        tgt_vocab_size = 17
+
+        model = EncoderDecoderWPointerModel.from_parameters(
+            layers=1,
+            hidden=32,
+            heads=2,
+            src_vocab_size=src_vocab_size,
+            tgt_vocab_size=tgt_vocab_size,
+            max_src_len=7,
+            dropout=0,
+            move_norm=100,
+        )
+
+        model.reset_initial_params()
+        model.expand_output_vocab(2)
+
+        model_copy = deepcopy(model)
+        model_copy.config.move_norm = None
+        del model_copy.initial_params
+
+        model_copy2 = deepcopy(model)
+        model_copy2.config.move_norm = None
+        del model_copy2.initial_params
+
+        for (n1, p1), (n2, p2) in zip(model.named_parameters(), model_copy.named_parameters()):
+            assert n1 == n2
+            assert torch.allclose(p1, p2)
+
+        # check that model updates do not change initial_params
+        bs, src_len, tgt_len = 3, 5, 7
+        x_enc = torch.randint(0, src_vocab_size, size=(bs, src_len))
+        x_dec = torch.randint(0, tgt_vocab_size, size=(bs, tgt_len))
+
+        dec_inp = x_dec[:, :-1].contiguous()
+        labels = x_dec[:, 1:].contiguous()
+
+        losses = []
+        for i, _model in enumerate([model, model_copy, model_copy2]):
+            print(i)
+            for _ in range(2):
+                # at the first update move_norm = 0 as model == initial
+                optimizer = torch.optim.SGD(_model.parameters(), 1e-3)
+
+                out = _model(input_ids=x_enc, decoder_input_ids=dec_inp, labels=labels)
+
+                loss = out[0]
+                loss.backward()
+
+                optimizer.step()
+
+            losses.append(loss.detach())
+
+        self.assertTrue(torch.allclose(losses[1], losses[2]), msg="test is not deterministic")
+        self.assertFalse(torch.allclose(losses[0], losses[1]))
+
+        for (n1, p1), (n2, p2), (n3, p3) in zip(
+            model.named_parameters(), model_copy.named_parameters(), model_copy2.named_parameters()
+        ):
+            # model weights should change
+            # model copy weights should stay the same
+            assert n1 == n2 == n3
+            if "pooler" in n1:
+                # we do not use pooler weights
+                continue
+
+            self.assertTrue(torch.allclose(p2, p3), msg=f"test is not deterministic")
+            if n1 == "lm_head.bias": continue
+            self.assertFalse(torch.allclose(p1, p2), msg=n1)
