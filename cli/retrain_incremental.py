@@ -203,6 +203,7 @@ def check_args(args):
 
 
 def load_data(path, new_data_amount, old_data_amount, old_data_sampling_method):
+    path = Path(path)
     datasets = torch.load(path)
     train_subset: nsp.PointerDataset = datasets["train_dataset"]
     eval_dataset: nsp.PointerDataset = datasets["test_dataset"]
@@ -214,8 +215,8 @@ def load_data(path, new_data_amount, old_data_amount, old_data_sampling_method):
 
     if old_data_amount > 0:
         # path looks like: data/directory/batch_42/data.pkl
-        batches_dir = Path(path).parent.parent
-        current_batch_number = int(path.parent.as_posix().split("_")[-1])
+        batches_dir = path.parent
+        current_batch_number = int(path.as_posix().split("_")[-1])
 
         if current_batch_number < 1:
             raise RuntimeError("You should start fine-tuning with a batch >= 1. Use train.py for batch_0")
@@ -290,8 +291,8 @@ def main(args):
     # from the current batch directory find the previous batch directory
     # and compare current tokenizer with the previous one
     data_dir_path = Path(args.data_dir)
-    batches_dir = data_dir_path.parent.parent
-    current_batch_number = int(data_dir_path.parent.as_posix().split("_")[-1])
+    batches_dir = data_dir_path.parent
+    current_batch_number = int(data_dir_path.as_posix().split("_")[-1])
 
     tokenizer_path = data_dir_path / "tokenizer"
     old_tokenizer_path = batches_dir / f"batch_{current_batch_number}" / "tokenizer"
