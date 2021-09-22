@@ -565,6 +565,10 @@ class EncoderDecoderWPointerModel(transformers.PreTrainedModel):
         return norm
 
     def reset_initial_params(self):
+        if self.expanded_by > 0:
+            logger.warning("Setting expanded_by to 0 during reset_initial_params to avoid issues with move_norm computation")
+            self.expanded_by = 0
+
         self.initial_params = ParamsBufferHolder(self.named_parameters())
 
     def reset_grad_squared(self):
@@ -621,7 +625,7 @@ class EncoderDecoderWPointerModel(transformers.PreTrainedModel):
     def finalize_grad_squared(self):
         """Divides the accumulated grad_squared by the number of training steps
 
-        Only use this ones right after the training and only use it on models that track trad square
+        Only use this ones right after the training and only use it on models that track grad square
         """
         if self._is_finalized:
             raise RuntimeError(
@@ -646,6 +650,21 @@ class EncoderDecoderWPointerModel(transformers.PreTrainedModel):
 
             grad_squared = self.grad_squared[n]
             initial_p = self.initial_params[n]
+
+            if self.expanded_by != 0 and (
+                "lm_head.decoder.weight" in n or
+                "lm_head.bias" in n
+            ):
+                # p1, _ = p1.split([p1.shape[0] - self.expanded_by, self.expanded_by])
+                p = p[:-self.expanded_by]
+
+            elif self.expanded_by != 0 and (
+                "decoder.embeddings.word_embeddings" in n
+            ):
+                p1_old_vocab = p[:self._old_schema_vocab_size]
+                p1_pointer_emb = p[-self.config.max_src_len:]
+
+                p = torch.cat([p1_old_vocab, p1_pointer_emb], dim=0)
 
             delta = initial_p - p
             reg += torch.sum(grad_squared * delta ** 2)
@@ -731,22 +750,5 @@ class EncoderDecoderWPointerModel(transformers.PreTrainedModel):
             new_decoder_embeds.weight[schema_vocab_size + expand_by:] = decoder_embeds.weight[schema_vocab_size:]
 
         self.decoder.embeddings.word_embeddings = new_decoder_embeds
-
-        # if self.initial_params is None:
-        #     logger.info("Extended decoder input embeds")
-        #     return
-        #
-        # # Part 3: extend initial params that are used to compute EWC
-        # initial_lm_head_weight = self.initial_params["lm_head.decoder.weight"]
-        # new_shape = initial_lm_head_weight.shape[0] + expand_by, initial_lm_head_weight.shape[1]
-        # new_initial_lm_head_weight = torch.randn(new_shape, requires_grad=False)
-        # new_initial_lm_head_weight[:initial_lm_head_weight.shape[0]] = initial_lm_head_weight
-        #
-        # self.initial_params.set("lm_head.decoder.weight", new_initial_lm_head_weight)
-        #
-        # initial_lm_head_weight = self.initial_params["lm_head.decoder.weight"]
-        # new_shape = initial_lm_head_weight.shape
-        # new_shape[0] = new_shape[0] + expand_by
-        # new_initial_lm_head_weight = torch.randn(new_shape)
 
         logger.info("Extended decoder input embeds")

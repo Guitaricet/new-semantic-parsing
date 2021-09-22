@@ -254,6 +254,8 @@ def load_model(
 ):
     """Load a trained model and override some model properties if specified."""
     model_config = nsp.EncoderDecoderWPointerConfig.from_pretrained(model_dir)
+    model_config.track_grad_square = False  # do not track grad square during fine-tuning, do this in the end
+
     if dropout is not None:
         model_config.set_dropout(dropout)
     if move_norm is not None:
@@ -402,6 +404,7 @@ def main(args):
     if model.initial_params is not None:
         assert torch.allclose(model.get_move_norm(), torch.zeros(1, device=model.device))
 
+    assert lightning_module.model.config.track_grad_square is False, "you should not update grad_square during fine-tuning"
     trainer.fit(lightning_module, optimizer_and_scheduler)
 
     cli_utils.check_config(lightning_module, trainer, args, strict=True)
