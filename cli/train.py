@@ -60,8 +60,8 @@ def parse_args(args=None):
                              "The final evaluation will use the full dataset.")
     parser.add_argument("--new-classes", default=None,
                         help="names of classes to track")
-    parser.add_argument("--max-src-len", default=None, help="Use 63 for TOP dataset")
-    parser.add_argument("--max-tgt-len", default=None, help="Use 98 for TOP dataset")
+    parser.add_argument("--max-src-len", default=None, type=int, help="Use 63 for TOP dataset")
+    parser.add_argument("--max-tgt-len", default=None, type=int, help="Use 98 for TOP dataset")
 
     # model
     parser.add_argument("--encoder-model", default=None,
