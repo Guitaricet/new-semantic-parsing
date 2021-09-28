@@ -20,8 +20,10 @@ import pprint
 import os
 import sys
 import tempfile
+from datetime import datetime
 from os.path import join as path_join
 
+import pandas as pd
 import toml
 import torch
 import transformers
@@ -142,8 +144,8 @@ def parse_args(args=None):
                         help="Only used for logging, amount of data that was removed from the training set")
     parser.add_argument("--alert-em", default=0.7, type=float,
                         help="use wandb alert if the final exact match is below this value")
-    parser.add_argument("--cl-iteration", default=0, type=int,
-                        help="used to log the cl batch number, useful for plotting learning curves")
+    parser.add_argument("--aggregation-file", default="final_metrics.csv",
+                        help="append the final metrics to this file, used for plotting")
 
     # fmt: on
 
@@ -364,6 +366,26 @@ def main(args):
         toml.dump(args_dict, f)
 
     wandb.log({**final_metrics["means"], **final_metrics["stdevs"]}, step=trainer.model.global_step)
+
+    metrics_to_plot = pd.Series({
+        "cl_iteration": 0,
+        "eval_exact_match": final_metrics["means"]["eval_exact_match"],
+        "eval_tree_path_f1": final_metrics["means"]["eval_tree_path_f1"],
+        "datetime": datetime.now(),
+    })
+
+    if os.path.exists(args.aggregation_file):
+        agg_df = pd.read_csv(args.aggregation_file)
+        try:
+            agg_df = agg_df.append(metrics_to_plot, ignore_index=True)
+        except Exception as e:
+            logger.error(e)
+            logger.info("Continuing script")
+    else:
+        agg_df = pd.DataFrame([metrics_to_plot])
+
+    agg_df.to_csv(args.aggregation_file, index=False)
+
     logger.info("Finished")
 
 

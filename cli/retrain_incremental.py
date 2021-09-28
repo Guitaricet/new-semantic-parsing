@@ -25,9 +25,11 @@ import pprint
 import logging
 import argparse
 import tempfile
+from datetime import datetime
 from pathlib import Path
 from os.path import join as path_join
 
+import pandas as pd
 import toml
 import torch
 import wandb
@@ -151,6 +153,8 @@ def parse_args(args=None):
     parser.add_argument("--clean-output", default=False, action="store_true")
     parser.add_argument("--split-amount-finetune", default=None, type=float,
                         help="Only used for logging, amount of data that was removed from the training set")
+    parser.add_argument("--aggregation-file", default="final_metrics.csv",
+                        help="append the final metrics to this file, used for plotting")
 
     # fmt: on
 
@@ -453,6 +457,25 @@ def main(args):
 
     if args.clean_output:
         shutil.rmtree(args.output_dir)
+
+    metrics_to_plot = pd.Series({
+        "cl_iteration": current_batch_number,
+        "eval_exact_match": final_metrics["means"]["eval_exact_match"],
+        "eval_tree_path_f1": final_metrics["means"]["eval_tree_path_f1"],
+        "datetime": datetime.now(),
+    })
+
+    if os.path.exists(args.aggregation_file):
+        agg_df = pd.read_csv(args.aggregation_file)
+        try:
+            agg_df = agg_df.append(metrics_to_plot, ignore_index=True)
+        except Exception as e:
+            logger.error(e)
+            logger.info("Continuing script")
+    else:
+        agg_df = pd.DataFrame([metrics_to_plot])
+
+    agg_df.to_csv(args.aggregation_file, index=False)
 
 
 if __name__ == "__main__":
