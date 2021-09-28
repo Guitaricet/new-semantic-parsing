@@ -60,6 +60,8 @@ def parse_args(args=None):
                              "The final evaluation will use the full dataset.")
     parser.add_argument("--new-classes", default=None,
                         help="names of classes to track")
+    parser.add_argument("--max-src-len", default=None, help="Use 63 for TOP dataset")
+    parser.add_argument("--max-tgt-len", default=None, help="Use 98 for TOP dataset")
 
     # model
     parser.add_argument("--encoder-model", default=None,
@@ -273,6 +275,12 @@ def main(args):
     wandb.config.update({"num_data": len(train_dataset)})
 
     max_src_len, max_tgt_len = train_dataset.get_max_len()
+
+    if args.max_src_len is not None:
+        max_src_len = max_src_len
+
+    if args.max_tgt_len is not None:
+        max_tgt_len = max_tgt_len
 
     try:
         preprocess_args = cli_utils.load_saved_args(path_join(args.data_dir, "args.toml"))
