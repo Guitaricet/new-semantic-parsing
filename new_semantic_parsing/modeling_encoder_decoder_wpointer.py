@@ -146,10 +146,10 @@ class EncoderDecoderWPointerModel(transformers.PreTrainedModel):
 
         # used for weight consolidation and move norm during both training and finetuning
         self.initial_params = None
+        self.expanded_by = 0
         if use_ewc or self.config.move_norm is not None:
             self.reset_initial_params()  # set initial_params
 
-        self.expanded_by = 0
         self.should_update_optimizer = False  # used in expand_output_vocab
         self._old_schema_vocab_size = None  # used in get_move_norm if vocab has been expanded
 
