@@ -276,11 +276,8 @@ def main(args):
 
     max_src_len, max_tgt_len = train_dataset.get_max_len()
 
-    if args.max_src_len is not None:
-        max_src_len = max_src_len
-
-    if args.max_tgt_len is not None:
-        max_tgt_len = max_tgt_len
+    max_src_len = args.max_src_len or max_src_len
+    max_tgt_len = args.max_tgt_len or max_tgt_len
 
     try:
         preprocess_args = cli_utils.load_saved_args(path_join(args.data_dir, "args.toml"))
