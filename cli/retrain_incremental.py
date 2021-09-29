@@ -465,6 +465,7 @@ def main(args):
         "datetime": datetime.now(),
     })
 
+    logger.info(f"Appending the metrics to aggregation file {args.aggregation_file}")
     if os.path.exists(args.aggregation_file):
         agg_df = pd.read_csv(args.aggregation_file)
         try:

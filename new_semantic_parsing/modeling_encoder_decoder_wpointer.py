@@ -751,4 +751,8 @@ class EncoderDecoderWPointerModel(transformers.PreTrainedModel):
 
         self.decoder.embeddings.word_embeddings = new_decoder_embeds
 
+        self.config.decoder.vocab_size = new_decoder_embed_vocab_size
+        self.decoder.config.vocab_size = new_decoder_embed_vocab_size
+        self._actual_vocab_size = new_decoder_embed_vocab_size
+
         logger.info("Extended decoder input embeds")
