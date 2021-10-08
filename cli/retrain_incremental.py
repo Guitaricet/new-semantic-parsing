@@ -436,7 +436,7 @@ def main(args):
             "metrics": final_metrics,
             "max_src_len": max_src_len,
             "max_tgt_len": max_tgt_len,
-            **vars(args),
+            **{k: v for k, v in vars(args).items() if v is not None},
         }
         toml.dump(args_dict, f)
 
