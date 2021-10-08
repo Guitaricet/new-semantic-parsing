@@ -348,7 +348,9 @@ def main(args):
 
     logger.info("Preparing for training")
 
-    max_tgt_len = train_args.get("max_tgt_len", 68)  # 68 is max_tgt_len for TOP
+    max_src_len = train_args.get("max_src_len", 63)  # 68 is max_src_len for TOP
+    max_tgt_len = train_args.get("max_tgt_len", 98)  # 98 is max_tgt_len for TOP
+
     # this is not a lightning module anymore
     freezing_schedule = nsp.dataclasses.EncDecFreezingSchedule.from_args(args)
 
@@ -393,15 +395,6 @@ def main(args):
         only_scheduler=True,
     )
 
-    # get evaluation metrics of the initial model
-    pretrain_metrics = train_args["metrics"]
-    _first_step_metrics = {
-        "epoch": 0,
-        "global_step": 0,
-        **pretrain_metrics["means"],
-        **pretrain_metrics["stdevs"],
-    }
-    wandb.log(_first_step_metrics, step=0)
     wandb.watch(lightning_module, log="all", log_freq=lightning_module.log_every)
 
     # --- FIT
@@ -415,10 +408,6 @@ def main(args):
     trainer.fit(lightning_module, optimizer_and_scheduler)
 
     cli_utils.check_config(lightning_module, trainer, args, strict=True)
-
-    with open(path_join(args.output_dir, "args.toml"), "w") as f:
-        args_dict = {"version": nsp.SAVE_FORMAT_VERSION, **vars(args)}
-        toml.dump(args_dict, f)
 
     logger.info("Training finished!")
 
@@ -439,21 +428,17 @@ def main(args):
         {**final_metrics["means"], **final_metrics["stdevs"]}, step=trainer.model.global_step
     )
 
-    # Compute RI and RD
-    class_weights = eval_dataset.get_class_frequencies(schema_tokenizer)
-    class_weights = {f"cls/eval_{cls}_tree_path_f1": p for cls, p in class_weights.items()}
-
-    finetuning_metrics = cli_utils.evaluate_finetuning_procedure(
-        pretrain_metrics, final_metrics, class_weights
-    )
-    wandb.log(finetuning_metrics, step=trainer.model.global_step)
-
-    # Compute RI and RD with very small outliers stuff
-    finetuning_metrics0 = cli_utils.evaluate_finetuning_procedure(
-        pretrain_metrics, final_metrics, class_weights, sigma=0.0
-    )
-    finetuning_metrics0 = {k + "_0.0": v for k, v in finetuning_metrics0.items()}
-    wandb.log(finetuning_metrics0, step=trainer.model.global_step)
+    with open(path_join(args.output_dir, "args.toml"), "w") as f:
+        del train_args["metrics"]
+        args_dict = {
+            **train_args,
+            "version": nsp.SAVE_FORMAT_VERSION,
+            "metrics": final_metrics,
+            "max_src_len": max_src_len,
+            "max_tgt_len": max_tgt_len,
+            **vars(args),
+        }
+        toml.dump(args_dict, f)
 
     if args.clean_output:
         shutil.rmtree(args.output_dir)
