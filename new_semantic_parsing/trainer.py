@@ -115,7 +115,7 @@ class Trainer:
         self.valid_dataloader = self.model.val_dataloader()
 
         if eval_before_training:
-            self._validation_loop(self.valid_dataloader)
+            self._validation_loop(self.valid_dataloader, skip_save=True)
 
         if optimizer_and_scheduler is None:
             logger.info(f"Creating new optimizers")
@@ -237,7 +237,7 @@ class Trainer:
 
         return optimizer, scheduler
 
-    def _validation_loop(self, valid_dataloader):
+    def _validation_loop(self, valid_dataloader, skip_save=False):
         logger.info("Validating")
 
         eval_logs = []
@@ -255,11 +255,13 @@ class Trainer:
 
             aggregated_eval_logs = self.model.validation_epoch_end(eval_logs)
             # aggregated_eval_logs is a dict with a single key "log"
-            self._maybe_save(aggregated_eval_logs["log"])
+            if not skip_save:
+                self._maybe_save(aggregated_eval_logs["log"])
+
             wandb.log(aggregated_eval_logs["log"], step=self.model.global_step)
 
         self.model.train()
-        return self._should_stop_early(aggregated_eval_logs)
+        return self._should_stop_early(aggregated_eval_logs["log"])
 
     @staticmethod
     def _unpack_optimizer_and_scheduler(optimizer_and_scheduler):
@@ -320,8 +322,8 @@ class Trainer:
     def _should_stop_early(self, validation_metrics):
         if (
             self.early_stopping_metric is None
-            or self.min_epochs < self._epoch
-            or self.min_steps < self.model.global_step
+            or self._epoch < self.min_epochs
+            or self.model.global_step < self.min_steps
         ):
             return
 
