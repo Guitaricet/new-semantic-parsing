@@ -405,7 +405,11 @@ def main(args):
         assert torch.allclose(model.get_move_norm(), torch.zeros(1, device=model.device))
 
     assert lightning_module.model.config.track_grad_square is False, "you should not update grad_square during fine-tuning"
-    trainer.fit(lightning_module, optimizer_and_scheduler)
+    trainer.fit(
+        model=lightning_module,
+        optimizer_and_scheduler=optimizer_and_scheduler,
+        eval_before_training=True,
+    )
 
     cli_utils.check_config(lightning_module, trainer, args, strict=True)
 

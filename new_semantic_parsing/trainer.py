@@ -104,7 +104,7 @@ class Trainer:
         self.train_dataloader = None
         self.valid_dataloader = None
 
-    def fit(self, model: PointerModule, optimizer_and_scheduler=None):
+    def fit(self, model: PointerModule, optimizer_and_scheduler=None, eval_before_training=False):
         logger.info(f"Loading the model to {self.device}")
         self.model: PointerModule = model.to(self.device)
         self.model.global_step = 0
@@ -113,6 +113,9 @@ class Trainer:
         logger.info(f"Creating train and validation dataloaders")
         self.train_dataloader = self.model.train_dataloader()
         self.valid_dataloader = self.model.val_dataloader()
+
+        if eval_before_training:
+            self._validation_loop(self.valid_dataloader)
 
         if optimizer_and_scheduler is None:
             logger.info(f"Creating new optimizers")
