@@ -335,6 +335,9 @@ def main(args):
     wandb.config.update({"pretrain_" + k: v for k, v in train_args.items() if k != "metrics"})
     wandb.config.update({"num_total_data": len(train_dataset)})
 
+    logger.info(f"Training dataset size: {len(train_dataset)}")
+    logger.info(f"Evaluation dataset size: {len(eval_dataset)}")
+
     logger.info("Loading model")
     model = load_model(
         model_dir=args.model_dir,
