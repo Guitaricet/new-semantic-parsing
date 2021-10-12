@@ -436,7 +436,9 @@ def main(args):
     )
 
     with open(path_join(args.output_dir, "args.toml"), "w") as f:
-        del train_args["metrics"]
+        if "metrics" in train_args:
+            del train_args["metrics"]
+
         args_dict = {
             **train_args,
             "version": nsp.SAVE_FORMAT_VERSION,

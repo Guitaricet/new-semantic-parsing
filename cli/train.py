@@ -146,6 +146,8 @@ def parse_args(args=None):
                         help="use wandb alert if the final exact match is below this value")
     parser.add_argument("--aggregation-file", default="final_metrics.csv",
                         help="append the final metrics to this file, used for plotting")
+    parser.add_argument("--skip-training", default=False, action="store_true",
+                        help="Only used for debug")
 
     # fmt: on
 
@@ -329,6 +331,23 @@ def main(args):
 
     # --- FIT
     cli_utils.check_config(lightning_module, trainer, args)
+
+    if args.skip_training:
+        logger.info(f"--skip-training has been specified, saving initialized model to {args.output_dir}")
+        model.save_pretrained(args.output_dir)
+
+        with open(path_join(args.output_dir, "args.toml"), "w") as f:
+            logger.info("Saving the metrics to the args.toml file")
+            args_dict = {
+                "version": nsp.SAVE_FORMAT_VERSION,
+                "max_src_len": max_src_len,
+                "max_tgt_len": max_tgt_len,
+                **vars(args),
+            }
+            toml.dump(args_dict, f)
+
+        logger.info("Script finished successfully")
+        return
 
     trainer.fit(lightning_module)
 
