@@ -105,24 +105,11 @@ class Trainer:
         self.valid_dataloader = None
 
     def fit(self, model: PointerModule, optimizer_and_scheduler=None, eval_before_training=False):
-        logger.info(f"Loading the model to {self.device}")
-        self.model: PointerModule = model.to(self.device)
-        self.model.global_step = 0
-        self._epoch = 0
-
-        logger.info(f"Creating train and validation dataloaders")
-        self.train_dataloader = self.model.train_dataloader()
-        self.valid_dataloader = self.model.val_dataloader()
-
-        if eval_before_training:
-            self._validation_loop(self.valid_dataloader, skip_save=True)
-
-        if optimizer_and_scheduler is None:
-            logger.info(f"Creating new optimizers")
-            optimizer_and_scheduler = self.model.configure_optimizers()
-        else:
-            logger.info(f"Using provided optimizers")
-        self.optimizer, self.scheduler = self._unpack_optimizer_and_scheduler(optimizer_and_scheduler)
+        self.setup_trainer(
+            model=model,
+            optimizer_and_scheduler=optimizer_and_scheduler,
+            eval_before_training=eval_before_training,
+        )
 
         # Training loop
         logger.info(f"Starting training")
@@ -181,13 +168,34 @@ class Trainer:
             logger.info(f"Loading the best model from {self.save_dir}")
             self.model.model = self.model.model.from_pretrained(self.save_dir)
 
+    def setup_trainer(self, model, optimizer_and_scheduler=None, eval_before_training=False):
+        logger.info(f"Loading the model to {self.device}")
+        self.model: PointerModule = model.to(self.device)
+        self.model.global_step = 0
+        self._epoch = 0
+
+        logger.info(f"Creating train and validation dataloaders")
+        self.train_dataloader = self.model.train_dataloader()
+        self.valid_dataloader = self.model.val_dataloader()
+
+        if eval_before_training:
+            self._validation_loop(self.valid_dataloader, skip_save=True)
+
+        if optimizer_and_scheduler is None:
+            logger.info(f"Creating new optimizers")
+            optimizer_and_scheduler = self.model.configure_optimizers()
+        else:
+            logger.info(f"Using provided optimizers")
+
+        self.optimizer, self.scheduler = self._unpack_optimizer_and_scheduler(optimizer_and_scheduler)
+
     def save(self, checkpoint_dir=None):
         """Save the Trainer, model and tokenizer into checkpoint_dir
 
         If checkpoint_path is not specified, self.save_dir is used
         """
         if self.model is None:
-            raise RuntimeError("There is no model so save. Call .fit(model) first")
+            raise RuntimeError("There is no model so save. Call .setup_trainer() or .fit() first")
 
         checkpoint_dir = checkpoint_dir or self.save_dir
 

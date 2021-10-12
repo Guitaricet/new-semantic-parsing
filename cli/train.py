@@ -334,7 +334,8 @@ def main(args):
 
     if args.skip_training:
         logger.info(f"--skip-training has been specified, saving initialized model to {args.output_dir}")
-        model.save_pretrained(args.output_dir)
+        trainer.setup_trainer(lightning_module)
+        trainer.save()
 
         with open(path_join(args.output_dir, "args.toml"), "w") as f:
             logger.info("Saving the metrics to the args.toml file")
