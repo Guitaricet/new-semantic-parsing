@@ -279,6 +279,16 @@ def main(args):
     wandb.config.update({"num_data": len(train_dataset)})
 
     max_src_len, max_tgt_len = train_dataset.get_max_len()
+    logger.info(f"Maximum training set length, src: {max_src_len} tgt: {max_tgt_len}")
+
+    if args.max_src_len is not None and args.max_src_len < max_src_len:
+        logger.warning(f"--max-src-len is smaller than the training dataset max len = {max_src_len}")
+
+    eval_max_src_len, eval_max_tgt_len = eval_dataset.get_max_len()
+    logger.info(f"Maximum eval set length, src: {eval_max_src_len} tgt: {eval_max_tgt_len}")
+
+    if args.max_src_len is not None and args.max_src_len < eval_max_src_len:
+        logger.warning(f"--max-src-len is smaller than the eval dataset max len = {max_src_len}")
 
     max_src_len = args.max_src_len or max_src_len
     max_tgt_len = args.max_tgt_len or max_tgt_len
