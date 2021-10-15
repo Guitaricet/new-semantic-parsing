@@ -372,6 +372,16 @@ class EncoderDecoderWPointerModel(transformers.PreTrainedModel):
         kwargs_decoder = {k[len("decoder_"):]: v for k, v in kwargs.items() if k.startswith("decoder_")}
         # fmt: on
 
+        if torch.max(decoder_input_ids) >= self.decoder.config.vocab_size:
+            raise RuntimeError(f"Vocab mismatch in decoder.\n"
+                               f"decoder_vocab_size={self.decoder.config.vocab_size}, "
+                               f"but decoder_input_ids={decoder_input_ids}")
+
+        if torch.max(decoder_input_ids) >= self.decoder.embeddings.word_embeddings.num_embeddings:
+            raise RuntimeError(f"Vocab mismatch in decoder.\n"
+                               + f"decoder_vocab_size={self.decoder.embeddings.word_embeddings.num_embeddings}, "
+                               + f"but decoder_input_ids={decoder_input_ids}")
+
         # Encode
         if encoder_outputs is None:
             encoder_outputs = self.encoder(
