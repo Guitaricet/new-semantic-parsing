@@ -31,6 +31,7 @@ import wandb
 
 import new_semantic_parsing as nsp
 import new_semantic_parsing.dataclasses
+import new_semantic_parsing.optimization
 
 from new_semantic_parsing import utils, cli_utils
 
@@ -114,9 +115,8 @@ def parse_args(args=None):
     parser.add_argument("--batch-size", default=64, type=int)
     parser.add_argument("--max-grad-norm", default=1.0, type=float)
     parser.add_argument("--label-smoothing", default=0.0, type=float)
-    # NOTE: set to always true, because of the number of problems previous default value caused
-    parser.add_argument("--track-grad-square", default=True, action="store_true",
-                        help="Required if you want to tune this model with weight consolidation.")
+    parser.add_argument("--max-param-importance", default=0.001, type=float)
+    parser.add_argument("--new-param-importance-scale", default=0.00001, type=float)
 
     # --- freezing
     parser.add_argument("--freeze-encoder", default=None, type=int,
@@ -362,11 +362,10 @@ def main(args):
 
     trainer.fit(lightning_module)
 
-    if args.track_grad_square:
-        trainer.model.model.finalize_grad_squared()
-        # trainer.model is the PointerModule
-        # trainer.model.model is the EncoderDecoderWPointerModel
-        assert trainer.model.model._is_finalized
+    # Save weight importance
+    adam_si: nsp.optimization.AdamSI = trainer.optimizer
+    model.set_new_param_importance(adam_si.omega, scale=args.new_param_importance_scale)
+    model.save_pretrained(args.save_directory)
 
     logger.info("Training finished!")
 

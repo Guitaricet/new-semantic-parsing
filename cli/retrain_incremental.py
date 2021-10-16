@@ -37,6 +37,7 @@ import torch.utils.data
 
 import new_semantic_parsing as nsp
 import new_semantic_parsing.dataclasses
+import new_semantic_parsing.optimization
 
 from new_semantic_parsing import utils, cli_utils
 
@@ -80,7 +81,6 @@ def parse_args(args=None):
                         help="Amount of old data (train_set) to train on, only values from {0, 1} are supported")
     parser.add_argument("--old-data-sampling-method", default="merge_subset",
                         help="how to sample from old data")
-    parser.add_argument("--average-checkpoints", default=False, action="store_true")
     parser.add_argument("--new-model-weight", default=0.5, type=float)
 
     # model
@@ -112,6 +112,8 @@ def parse_args(args=None):
     parser.add_argument("--batch-size", default=None, type=int)
     parser.add_argument("--max-grad-norm", default=1.0, type=float)
     parser.add_argument("--label-smoothing", default=None, type=float)
+    parser.add_argument("--max-param-importance", default=None, type=float)
+    parser.add_argument("--new-param-importance-scale", default=0.005, type=float)
 
     # --- retrain-specific
     parser.add_argument("--move-norm", default=None, type=float,
@@ -206,6 +208,17 @@ def check_args(args):
         raise ValueError("--no-lr-scheduler is not supported, use retrain_simple.py instead.")
 
 
+def get_max_len(dataset):
+    if isinstance(dataset, nsp.data.PointerDataset):
+        return dataset.get_max_len()
+
+    if isinstance(dataset, torch.utils.data.ConcatDataset):
+        return max([d.get_max_len() for d in dataset.datasets])
+
+    if isinstance(dataset, nsp.data.SampleConcatSubset):
+        return max(dataset._concat_dataset.get_max_len(), dataset._sample_dataset.get_max_len())
+
+
 def load_data(path, new_data_amount, old_data_amount, old_data_sampling_method):
     path = Path(path)
     datasets = torch.load(path)
@@ -255,10 +268,10 @@ def load_model(
     label_smoothing=None,
     weight_consolidation=None,
     new_vocab_size=None,
+    max_param_importance=None,
 ):
     """Load a trained model and override some model properties if specified."""
     model_config = nsp.EncoderDecoderWPointerConfig.from_pretrained(model_dir)
-    model_config.track_grad_square = False  # do not track grad square during fine-tuning, do this in the end
 
     if dropout is not None:
         model_config.set_dropout(dropout)
@@ -270,6 +283,8 @@ def load_model(
         model_config.label_smoothing = label_smoothing
     if weight_consolidation is not None:
         model_config.weight_consolidation = weight_consolidation
+    if max_param_importance is not None:
+        model_config.max_param_importance = max_param_importance
 
     model = nsp.EncoderDecoderWPointerModel.from_pretrained(model_dir, config=model_config)
     model.reset_initial_params()  # w_0 from EWC
@@ -347,6 +362,7 @@ def main(args):
         label_smoothing=args.label_smoothing,
         weight_consolidation=args.weight_consolidation,
         new_vocab_size=schema_tokenizer.vocab_size,
+        max_param_importance=args.max_param_importance,
     )
 
     logger.info("Preparing for training")
@@ -407,7 +423,6 @@ def main(args):
     if model.initial_params is not None:
         assert torch.allclose(model.get_move_norm(), torch.zeros(1, device=model.device))
 
-    assert lightning_module.model.config.track_grad_square is False, "you should not update grad_square during fine-tuning"
     trainer.fit(
         model=lightning_module,
         optimizer_and_scheduler=optimizer_and_scheduler,
@@ -418,9 +433,10 @@ def main(args):
 
     logger.info("Training finished!")
 
-    if args.average_checkpoints:
-        raise NotImplementedError("Average checkpoints is not supported anymore")
-        # average_checkpoints(model, args, save_to=os.path.dirname(best_model_checkpoint))
+    # Save weight importance
+    adam_si: nsp.optimization.AdamSI = trainer.optimizer
+    model.set_new_param_importance(adam_si.omega, scale=args.new_param_importance_scale)
+    model.save_pretrained(args.save_directory)
 
     final_metrics, description = cli_utils.evaluate_model_n_rounds(
         trainer.model.model,

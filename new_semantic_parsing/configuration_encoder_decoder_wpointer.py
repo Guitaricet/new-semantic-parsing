@@ -42,16 +42,16 @@ class EncoderDecoderWPointerConfig(EncoderDecoderConfig):
         self.move_norm_p = kwargs.get("move_norm_p", 2)
         self.use_pointer_bias = kwargs.get("use_pointer_bias", False)
         self.label_smoothing = kwargs.get("label_smoothing", 0)
-        self.track_grad_square = kwargs.get("track_grad_square", False)
         self.weight_consolidation = kwargs.get("weight_consolidation", None)
+        self.max_param_importance = kwargs.get("max_param_importance", None)
 
         if model_args is not None:
             self.move_norm = getattr(model_args, "move_norm", None)
             self.move_norm_p = getattr(model_args, "move_norm_p", 2)
             self.use_pointer_bias = getattr(model_args, "use_pointer_bias", False)
             self.label_smoothing = getattr(model_args, "label_smoothing", 0)
-            self.track_grad_square = getattr(model_args, "track_grad_square", False)
             self.weight_consolidation = getattr(model_args, "weight_consolidation", None)
+            self.max_param_importance = getattr(model_args, "max_param_importance", None)
 
         self.model_type = self.model_type
         self.dropout = dropout or 0

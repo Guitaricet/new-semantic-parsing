@@ -127,6 +127,7 @@ class Trainer:
                 if self.model.global_step > self.max_steps:
                     should_stop = True
                     break
+
                 wandb.log(
                     {"global_step": self.model.global_step, "epoch": self._epoch},
                     step=self.model.global_step,
@@ -144,7 +145,6 @@ class Trainer:
                     wandb.log(training_step_dict["aggregate_log"], step=self.model.global_step)
 
                 loss.backward()
-                self.model.on_after_backward()
                 self.optimizer.step()
 
                 if self.scheduler is not None:
@@ -165,8 +165,12 @@ class Trainer:
         logger.info("Training has finished")
 
         if self.early_stopping_metric:
-            logger.info(f"Loading the best model from {self.save_dir}")
-            self.model.model = self.model.model.from_pretrained(self.save_dir)
+            logger.info("Loading best model is not supported by our Synaptic Intelligence implementation. "
+                        f"Using the last model and saving it to {self.save_dir}")
+            self.save()
+
+            # logger.info(f"Loading the best model from {self.save_dir}")
+            # self.model.model = self.model.model.from_pretrained(self.save_dir)
 
     def setup_trainer(self, model, optimizer_and_scheduler=None, eval_before_training=False):
         logger.info(f"Loading the model to {self.device}")

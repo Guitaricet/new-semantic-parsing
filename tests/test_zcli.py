@@ -501,47 +501,6 @@ class TestPreprocessCLI(unittest.TestCase):
         retrain.main(args)
 
     @unittest.skipUnless(data_exists, skip_msg)
-    def test17_train_weight_consolidation(self):
-        shutil.rmtree(MODEL_DIR, ignore_errors=True)
-
-        args = [
-            "--data-dir",
-            DATA_BIN,
-            "--output-dir",
-            MODEL_DIR,
-            "--layers",
-            "1",
-            "--hidden",
-            "16",
-            "--heads",
-            "2",
-            "--epochs",
-            f"{EPOCHS}",
-            "--early-stopping",
-            "6",
-            "--decoder-lr",
-            "0.1",
-            "--encoder-lr",
-            "0.01",
-            "--dropout",
-            "0",
-            "--log-every",
-            "10",
-            "--tags",
-            "CLI_tests",
-            "--eval-data-amount",
-            "1.0",
-            "--split-amount-finetune",
-            "0.314",
-            "--min-epochs",
-            "1",
-            "--track-grad-square",
-        ]
-
-        args = train.parse_args(args)
-        train.main(args)
-
-    @unittest.skipUnless(data_exists, skip_msg)
     def test18_retrain_weight_consolidation(self):
         shutil.rmtree(OUTPUT_DIR, ignore_errors=True)
 

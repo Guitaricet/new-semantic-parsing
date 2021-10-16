@@ -126,28 +126,17 @@ class EncoderDecoderWPointerModel(transformers.PreTrainedModel):
             )
 
         # fine-tuning specific regularizations
-        use_ewc = self.config.track_grad_square or self.config.weight_consolidation
+        self.param_importance = ParamsBufferHolder(
+            {n: torch.zeros_like(p) for n, p in self.named_parameters()}
+        )
 
-        # used to normalize the grad squared in the end of training
-        # .finalize_grad_squared() method impelments this
-        self._is_finalized = True  # used to check that we do not divide by _n_steps when we do not need to
-        self._n_steps = None
-        if self.config.track_grad_square and not self.config.weight_consolidation:
-            self._is_finalized = False
-            self._n_steps = 0
-
-        if self.config.weight_consolidation:
-            logger.info("Fine-tuning ewc-ready model, setting config.track_grad_square=False")
-            self.config.track_grad_square = False
-
-        self.grad_squared = None
-        if use_ewc:
-            self.reset_grad_squared()
+        # used to normalize the omegas for Synaptic Intelligence in the end of training
+        self._n_steps = 0
 
         # used for weight consolidation and move norm during both training and finetuning
         self.initial_params = None
         self.expanded_by = 0
-        if use_ewc or self.config.move_norm is not None:
+        if self.config.weight_consolidation is not None or self.config.move_norm is not None:
             self.reset_initial_params()  # set initial_params
 
         self.should_update_optimizer = False  # used in expand_output_vocab
@@ -157,8 +146,7 @@ class EncoderDecoderWPointerModel(transformers.PreTrainedModel):
         # NOTE: not sure if we need this function
         super().load_state_dict(state_dict, strict)
 
-        use_ewc = self.config.track_grad_square or self.config.weight_consolidation
-        if use_ewc or self.config.move_norm is not None:
+        if self.config.weight_consolidation is not None or self.config.move_norm is not None:
             logger.info("Resetting model initial parameters.")
             self.reset_initial_params()
 
@@ -272,7 +260,6 @@ class EncoderDecoderWPointerModel(transformers.PreTrainedModel):
         decoder_pad_token_id=None,
         dropout=0,
         move_norm=None,
-        track_grad_square=False,
         weight_consolidation=None,
         model_args=None,
     ):
@@ -323,7 +310,6 @@ class EncoderDecoderWPointerModel(transformers.PreTrainedModel):
             model_args=model_args,
             move_norm=move_norm,
             dropout=dropout,
-            track_grad_square=track_grad_square,
             weight_consolidation=weight_consolidation,
         )
 
@@ -552,7 +538,6 @@ class EncoderDecoderWPointerModel(transformers.PreTrainedModel):
                 "lm_head.decoder.weight" in n or
                 "lm_head.bias" in n
             ):
-                # p1, _ = p1.split([p1.shape[0] - self.expanded_by, self.expanded_by])
                 p1 = p1[:-self.expanded_by]
 
             elif self.expanded_by != 0 and (
@@ -562,12 +547,7 @@ class EncoderDecoderWPointerModel(transformers.PreTrainedModel):
                 p1_pointer_emb = p1[-self.config.max_src_len:]
 
                 p1 = torch.cat([p1_old_vocab, p1_pointer_emb], dim=0)
-            #     norm += torch.dist(p1[:-self.expanded_by], p2, p=self.config.move_norm_p)
-            # elif self.expanded_by != 0 and (
-            #     "decoder.embeddings.word_embeddings" in n
-            # ):
-            #
-            # else:
+
             norm += torch.dist(p1, p2, p=self.config.move_norm_p)
             count += 1
 
@@ -576,79 +556,9 @@ class EncoderDecoderWPointerModel(transformers.PreTrainedModel):
 
     def reset_initial_params(self):
         if self.expanded_by > 0:
-            logger.warning("Setting expanded_by to 0 during reset_initial_params to avoid issues with move_norm computation")
-            self.expanded_by = 0
+            logger.warning("Note that expanded elements will not contribute to the move_norm")
 
         self.initial_params = ParamsBufferHolder(self.named_parameters())
-
-    def reset_grad_squared(self):
-        """Creates buffers holder to keep track for squares of gradients initialized as zeroes.
-
-        Call this function before training the model if you want to later fine-tune the model with EWC.
-        During training exponential mean of the grad squares is stored in these buffers.
-        """
-        self.grad_squared = ParamsBufferHolder(
-            {n: torch.zeros_like(p) for n, p in self.named_parameters()}
-        )
-
-    def update_grad_squared(self):
-        """
-        Updates grad_squared buffer, should be called between .backward() and .zero_grad().
-
-        Used to update gradient moving average during training,
-        for example in lightning_module.on_after_backward.
-
-            grad_squared = sum(grad_squared over training steps)
-
-        Notice that we do not need to divide the grad_squared by the batch size, because the loss is already normalized.
-
-        This trick allows to efficiently estimate grad norms during training instead of
-        forwarding full dataset in the end.
-        """
-
-        if self.grad_squared is None:
-            raise RuntimeError(
-                ".grad_squared is None, but trying to update it. "
-                "To initialize the model with grad_squared specify track_grad_square=True"
-            )
-
-        self._n_steps += 1
-        has_grad = False
-        for name, param in self.named_parameters():
-            if param.grad is None:
-                continue
-            has_grad = True
-
-            # read current squared grad value from the buffer
-            _old_grad2 = self.grad_squared[name]
-            _new_grad2 = _old_grad2 + param.grad ** 2
-
-            # write updated value to the buffer
-            self.grad_squared.set(name, _new_grad2)
-
-        if not has_grad:
-            raise RuntimeError(
-                "You should .backward before calling .update_grad_squared. "
-                "All parameters currently have None gradient."
-            )
-
-    def finalize_grad_squared(self):
-        """Divides the accumulated grad_squared by the number of training steps
-
-        Only use this ones right after the training and only use it on models that track grad square
-        """
-        if self._is_finalized:
-            raise RuntimeError(
-                "finalize_grad_squared called on a model that does not need finalization. "
-                "The grad_squared was either normalized already or the model does not need finalization "
-                "because it does not track grad_squared"
-            )
-
-        for name, grad2 in self.grad_squared.items():
-            normalized_grad2 = grad2 / self._n_steps
-            self.grad_squared.set(name, normalized_grad2)
-
-        self._is_finalized = True
 
     def _get_weight_consolidation(self):
         """Computes Sum(old_grad^2 * (old_params - current_params)^2)"""
@@ -658,29 +568,43 @@ class EncoderDecoderWPointerModel(transformers.PreTrainedModel):
             if not p.requires_grad:
                 continue
 
-            grad_squared = self.grad_squared[n]
+            param_importance = self.param_importance[n]
             initial_p = self.initial_params[n]
 
-            if self.expanded_by != 0 and (
-                "lm_head.decoder.weight" in n or
-                "lm_head.bias" in n
-            ):
-                # p1, _ = p1.split([p1.shape[0] - self.expanded_by, self.expanded_by])
-                p = p[:-self.expanded_by]
-
-            elif self.expanded_by != 0 and (
-                "decoder.embeddings.word_embeddings" in n
-            ):
-                p1_old_vocab = p[:self._old_schema_vocab_size]
-                p1_pointer_emb = p[-self.config.max_src_len:]
-
-                p = torch.cat([p1_old_vocab, p1_pointer_emb], dim=0)
-
             delta = initial_p - p
-            reg += torch.sum(grad_squared * delta ** 2)
+            reg += torch.sum(param_importance * delta ** 2)
             n_params += p.numel()
 
         return reg
+
+    def set_new_param_importance(self, omega, scale=1.0):
+        """Omega = Clip(model.param_importance + omega / (model.params - model.initial_params))
+
+        Uses current task weight importance, difference in parameters
+        and previous tasks weight importance to get all tasks weight importance
+
+        1. compute difference between model.initial_param and model.parameters
+        2. divide omega by this difference^2 + eps
+        3. multiply by scale
+        4. sum with previous
+        5. clip as in Single-task CL
+
+        Args:
+            omega: KeyIndexableList object with loss path integral, AdamSI.omega
+            scale: current weight importance is multiplied by this number
+        """
+
+        for n, p in self.named_parameters():
+            p_initial = self.initial_params[n]
+            p_importance = self.param_importance[n]
+            p_omega = omega[n]
+
+            delta = p - p_initial
+            current_task_param_importance = p_omega / (delta ** 2 + 1e-7)
+
+            new_importance = p_importance + scale * current_task_param_importance
+            new_importance = torch.max(new_importance, self.config.max_param_importance)
+            self.param_importance.set(n, new_importance)
 
     @torch.no_grad()
     def expand_output_vocab(self, expand_by, reuse_weights=True, init_type="random"):
@@ -743,15 +667,15 @@ class EncoderDecoderWPointerModel(transformers.PreTrainedModel):
         if init_type == "zeros":
             nn.init.zeros_(new_decoder_embeds.weight)
 
+        num_pointers = self.config.max_src_len
+        schema_vocab_size = old_decoder_embed_vocab_size - num_pointers
+        assert schema_vocab_size == old_vocab_size, "schema vocab size should be equal to the lm_head output size"
+
         if reuse_weights:
             # this operation is slightly tricky
             # the input vocabulary looks like this:
             # <special tokens> <schema vocabulary> <pointer embeddings>
             # we want to expand <schema vocabulary> and need to insert new embeddings BEFORE <pointer embeddings>
-            num_pointers = self.config.max_src_len
-
-            schema_vocab_size = old_decoder_embed_vocab_size - num_pointers
-            assert schema_vocab_size == old_vocab_size, "schema vocab size should be equal to the lm_head output size"
 
             # copy schema embeddings
             new_decoder_embeds.weight[:schema_vocab_size] = decoder_embeds.weight[:schema_vocab_size]
@@ -765,4 +689,28 @@ class EncoderDecoderWPointerModel(transformers.PreTrainedModel):
         self.decoder.config.vocab_size = new_decoder_embed_vocab_size
         self._actual_vocab_size = new_decoder_embed_vocab_size
 
+        logger.info("Expanding param_importance with zeros")
+
+        for n, p in self.param_importance.items():
+            if "lm_head.decoder.weight" in n or "lm_head.bias" in n:
+                p_shape = list(p.shape)
+                p_shape[0] += expand_by
+
+                new_p = torch.zeros(p_shape, dtype=p.dtype, device=p.device)
+                new_p[:-expand_by] = p
+                self.param_importance.set(n, new_p)
+
+            elif "decoder.embeddings.word_embeddings" in n:
+                p_shape = list(p.shape)
+                p_shape[0] += expand_by
+
+                new_p = torch.zeros(p_shape, dtype=p.dtype, device=p.device)
+                new_p[:schema_vocab_size] = p[:schema_vocab_size]
+                new_p[schema_vocab_size + expand_by:] = p[schema_vocab_size:]
+
+                self.param_importance.set(n, new_p)
+
         logger.info("Extended decoder input embeds")
+
+        logger.info("IMPORTANT: resetting initial_params")
+        self.reset_initial_params()
