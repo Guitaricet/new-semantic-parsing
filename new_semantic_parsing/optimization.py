@@ -150,38 +150,7 @@ def get_optimizers(model, learning_rate, weight_decay=0, adam_eps=1e-9, use_syna
     if not use_synaptic_intelligence:
         return torch.optim.Adam(optimizer_grouped_parameters, eps=adam_eps, betas=(0.9, 0.98))
 
-    omega_list = [
-        {
-            "omega": KeyIndexableList(
-                [(n, torch.zeros_like(p)) for n, p in decoder_parameters if not any(nd in n for nd in no_decay)]
-            ),
-            "group_type": "decoder_params",
-        },
-        {
-            "omega": KeyIndexableList(
-                [(n, torch.zeros_like(p)) for n, p in decoder_parameters if any(nd in n for nd in no_decay)]
-            ),
-            "group_type": "decoder_params_no_decay",
-        },
-    ]
-
-    if encoder_lr > 0:
-        omega_list.extend([
-            {
-                "omega": KeyIndexableList(
-                    [(n, torch.zeros_like(p)) for n, p in model.encoder.named_parameters() if not any(nd in n for nd in no_decay)]
-                ),
-                "group_type": "encoder_params",
-            },
-            {
-                "omega": KeyIndexableList(
-                    [(n, torch.zeros_like(p)) for n, p in model.encoder.named_parameters() if any(nd in n for nd in no_decay)]
-                ),
-                "group_type": "encoder_params_no_decay",
-            },
-        ])
-
-    optimizer = AdamSI(optimizer_grouped_parameters, omega=omega_list, eps=adam_eps, betas=(0.9, 0.98))
+    optimizer = AdamSI(optimizer_grouped_parameters, eps=adam_eps, betas=(0.9, 0.98))
     return optimizer
 
 
