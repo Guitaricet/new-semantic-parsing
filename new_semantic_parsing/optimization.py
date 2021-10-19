@@ -53,6 +53,10 @@ class KeyIndexableList:
     def __len__(self):
         return len(self.list_of_kv_tuples)
 
+    def items(self):
+        for k, v in self.list_of_kv_tuples:
+            yield k, v
+
     def get_index_by_key(self, key):
         return self._str_index[key]
 
@@ -216,15 +220,17 @@ class AdamSI(torch.optim.Adam):
             self.omega = KeyIndexableList([(k, torch.zeros_like(v)) for k, v in params.list_of_kv_tuples])
             self.omega_groups = [self.omega]
 
-        elif isinstance(params, list) and isinstance(params[0], KeyIndexableList):
+        elif isinstance(params, list) and isinstance(params[0]["params"], KeyIndexableList):
             self.omega = [
                 {
-                    "omega": KeyIndexableList([(k, v) for k, v in group_dict["params"]]),
+                    "omega": KeyIndexableList([(k, v) for k, v in group_dict["params"].items()]),
                     "group_type": group_dict["group_type"],
                 }
                 for group_dict in params
             ]
             self.omega_groups = self.omega
+        else:
+            raise ValueError(params)
 
         super().__init__(params, **kwargs)
 
