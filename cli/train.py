@@ -363,9 +363,10 @@ def main(args):
     trainer.fit(lightning_module)
 
     # Save weight importance
-    adam_si: nsp.optimization.AdamSI = trainer.optimizer
-    model.set_new_param_importance(adam_si.omega, scale=args.new_param_importance_scale)
-    model.save_pretrained(args.save_directory)
+    if isinstance(trainer.optimizer, nsp.optimization.AdamSI):
+        adam_si: nsp.optimization.AdamSI = trainer.optimizer
+        model.set_new_param_importance(adam_si.omega, scale=args.new_param_importance_scale)
+        model.save_pretrained(args.save_directory)
 
     logger.info("Training finished!")
 
