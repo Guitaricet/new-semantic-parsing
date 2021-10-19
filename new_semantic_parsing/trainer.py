@@ -147,6 +147,11 @@ class Trainer:
                 loss.backward()
                 self.optimizer.step()
 
+                for param_group in self.optimizer.param_groups:
+                    group_name = param_group['group_type']
+                    current_lr = param_group["lr"]
+                    wandb.log({f"{group_name}_lr": current_lr})
+
                 if self.scheduler is not None:
                     self.scheduler.step()
 
