@@ -21,7 +21,7 @@ import numpy as np
 import new_semantic_parsing as nsp
 import new_semantic_parsing.metrics
 import new_semantic_parsing.utils
-from cli.retrain import logger
+from cli.train import logger
 
 from new_semantic_parsing import config
 
