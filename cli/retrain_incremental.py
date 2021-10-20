@@ -203,15 +203,6 @@ def parse_args(args=None):
     return args
 
 
-def check_args(args):
-    if args.lr is not None:
-        raise ValueError(
-            "Learning rate specification is not supported, use retrain_simple.py instead."
-        )
-    if args.no_lr_scheduler:
-        raise ValueError("--no-lr-scheduler is not supported, use retrain_simple.py instead.")
-
-
 def get_max_len(dataset):
     if isinstance(dataset, nsp.data.PointerDataset):
         return dataset.get_max_len()
@@ -494,5 +485,4 @@ def main(args):
 
 if __name__ == "__main__":
     args = parse_args()
-    check_args(args)
     main(args)

@@ -25,6 +25,7 @@ Trainer largely mimics the Lightning interfaces we use in our setup, but has a m
 import logging
 import os
 import sys
+import warnings
 
 import torch
 import wandb
@@ -146,8 +147,14 @@ class Trainer:
 
                 loss.backward()
 
+                # scheduler is intentionally placed here, before the optimizer step,
+                # because NoamScheduler performs additional lr scaling
                 if self.scheduler is not None:
-                    self.scheduler.step()
+                    assert self.model.no_lr_scheduler is False
+                    with warnings.catch_warnings():
+                        warnings.filterwarnings("ignore")
+                        self.scheduler.step()
+
                 self.optimizer.step()
 
                 for param_group in self.optimizer.param_groups:
@@ -315,7 +322,10 @@ class Trainer:
             else:
                 raise ValueError(optimizer_list)
 
-            if isinstance(scheduler_list, list):
+            if scheduler_list is None:
+                scheduler = None
+
+            elif isinstance(scheduler_list, list):
                 if len(scheduler_list) != 1:
                     raise ValueError(
                         f"Only a single lr scheduler is supported, got {len(scheduler_list)} instead"
