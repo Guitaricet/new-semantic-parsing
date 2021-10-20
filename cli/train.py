@@ -259,14 +259,14 @@ def make_model(schema_tokenizer, max_src_len, args, preprocess_args=None):
 def main(args):
     utils.set_seed(args.seed)
 
+    if os.path.exists(args.output_dir):
+        raise ValueError(f"output_dir {args.output_dir} already exists")
+
     mode = "disabled" if args.disable_wandb else None
     wandb.init(project=args.wandb_project, tags=args.tags, config=args, mode=mode)
     wandb.config.update({"new_classes": " ".join(args.new_classes)}, allow_val_change=True)
 
     logger.info(f"Starting training with args: \n{pprint.pformat(vars(args))}")
-
-    if os.path.exists(args.output_dir):
-        raise ValueError(f"output_dir {args.output_dir} already exists")
 
     logger.info("Loading tokenizers")
     schema_tokenizer = nsp.TopSchemaTokenizer.load(path_join(args.data_dir, "tokenizer"))
@@ -276,7 +276,11 @@ def main(args):
     train_dataset: nsp.PointerDataset = datasets["train_dataset"]
     eval_dataset: nsp.PointerDataset = datasets["valid_dataset"]
 
-    wandb.config.update({"num_data": len(train_dataset)})
+    wandb.config.update({
+        "num_data": len(train_dataset),
+        "batch_number": 0,
+        "num_total_data": len(train_dataset),
+    })
 
     max_src_len, max_tgt_len = train_dataset.get_max_len()
     logger.info(f"Maximum training set length, src: {max_src_len} tgt: {max_tgt_len}")
