@@ -615,7 +615,6 @@ class EncoderDecoderWPointerModel(transformers.PreTrainedModel):
         hidden_size = self.lm_head.decoder.in_features
 
         logger.info(f"Changing vocab size from {old_vocab_size} to {new_vocab_size}")
-        logger.info("Remember to reconfigure optimizer!")
 
         new_lm_head_out_proj = nn.Linear(hidden_size, new_vocab_size, bias=False)
         new_lm_head_out_proj_bias = torch.zeros(new_vocab_size, requires_grad=True)
