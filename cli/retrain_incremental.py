@@ -20,6 +20,7 @@ and uses finetune_set instead of train_set from the data.pkl
 
 import os
 import sys
+import random
 import shutil
 import pprint
 import logging
@@ -28,12 +29,15 @@ import tempfile
 from datetime import datetime
 from pathlib import Path
 from os.path import join as path_join
+from functools import partial
 
 import pandas as pd
 import toml
 import torch
+import transformers
 import wandb
 import torch.utils.data
+from tqdm.auto import tqdm
 
 import new_semantic_parsing as nsp
 import new_semantic_parsing.dataclasses
@@ -64,8 +68,8 @@ def parse_args(args=None):
 
     # data
     parser.add_argument("--data-dir", required=True,
-                        help="Path to preprocess.py --save-dir containing directories batch_0, batch_1, ...."
-                             "Each directory should contain tokenizer, data.pkl, and args.toml. "
+                        help="Path a directory containing train.tsv, eval.tsv, test.tsv and vocab.txt. "
+                             "The upper-level directory should contain directories batch_0 ... batch_MAX_BATCH. "
                              "Use notebooks/17_top_multiple_splits.ipynb to create it.")
     parser.add_argument("--output-dir", default=None,
                         help="Directory to store checkpoints and other output files")
@@ -219,47 +223,6 @@ def get_max_len(dataset):
         return max(dataset._concat_dataset.get_max_len(), dataset._sample_dataset.get_max_len())
 
 
-def load_data(path, new_data_amount, old_data_amount, old_data_sampling_method):
-    path = Path(path)
-    datasets = torch.load(path)
-    train_subset: nsp.PointerDataset = datasets["train_dataset"]
-    eval_dataset: nsp.PointerDataset = datasets["test_dataset"]
-
-    if new_data_amount is not None:
-        train_subset = utils.make_subset(train_subset, new_data_amount)
-
-    wandb.config.update({"num_new_data": len(train_subset)})
-
-    if old_data_amount > 0:
-        # path looks like: data/directory/batch_42/data.pkl
-        batches_dir = path.parent.parent
-        current_batch_number = int(path.parent.as_posix().split("_")[-1])
-
-        if current_batch_number < 1:
-            raise RuntimeError("You should start fine-tuning with a batch >= 1. Use train.py for batch_0")
-
-        old_datasets = []
-        for old_batch_number in range(current_batch_number):
-            previous_batch_path = batches_dir / f"batch_{old_batch_number}" / "data.pkl"
-            previous_batch_data = torch.load(previous_batch_path)["train_dataset"]
-
-            old_datasets.append(previous_batch_data)
-
-        old_data = torch.utils.data.ConcatDataset(old_datasets)
-
-        if old_data_sampling_method == nsp.dataclasses.SamplingMethods.merge_subset:
-            old_data_subset = utils.make_subset(old_data, old_data_amount)
-            train_subset = torch.utils.data.ConcatDataset([train_subset, old_data_subset])
-
-        elif old_data_sampling_method == nsp.dataclasses.SamplingMethods.sample:
-            train_subset = nsp.data.SampleConcatSubset(train_subset, old_data, old_data_amount)
-
-        else:
-            raise ValueError(old_data_sampling_method)
-
-    return train_subset, eval_dataset
-
-
 def load_model(
     model_dir,
     dropout=None,
@@ -314,37 +277,74 @@ def main(args):
     data_dir_path = Path(args.data_dir)
     batches_dir = data_dir_path.parent
     current_batch_number = int(data_dir_path.as_posix().split("_")[-1])
-
-    tokenizer_path = data_dir_path / "tokenizer"
-    old_tokenizer_path = batches_dir / f"batch_{current_batch_number}" / "tokenizer"
+    wandb.config.batch_number = current_batch_number
 
     if current_batch_number < 1:
         raise RuntimeError("You should start fine-tuning with a batch >= 1. Use train.py for batch_0")
 
-    wandb.config.batch_number = current_batch_number
+    vocab_path = data_dir_path / "vocab.txt"
+    old_vocab_path = Path(args.model_dir) / "schema_vocab.txt"
 
-    with open(old_tokenizer_path / "schema_vocab.txt") as f:
+    with open(vocab_path) as f:
+        tokenizer_schema_vocab = f.read().split("\n")
+
+    with open(old_vocab_path) as f:
         old_tokenizer_schema_vocab = f.read().split("\n")
 
-    schema_tokenizer = nsp.TopSchemaTokenizer.load(tokenizer_path.as_posix())
-    if schema_tokenizer.vocab_size <= len(old_tokenizer_schema_vocab):
+    if len(tokenizer_schema_vocab) <= len(old_tokenizer_schema_vocab):
         raise ValueError("For class-incremental case, new vocab should be strictly larger than the previous vocab. "
                          f"Got previous vocab size {len(old_tokenizer_schema_vocab)} and new vocab size {schema_tokenizer.vocab_size}")
 
     # the first 3 are special tokens and they are not saved
-    if schema_tokenizer._itos[3:len(old_tokenizer_schema_vocab) + 3] != old_tokenizer_schema_vocab:
+    if tokenizer_schema_vocab[:len(old_tokenizer_schema_vocab)] != old_tokenizer_schema_vocab:
         raise RuntimeError(f"Expected the next tokenizer to be incremental to the previous one, "
-                           f"but got old vocab: {old_tokenizer_schema_vocab}, new vocab {schema_tokenizer._itos}")
+                           f"but got old vocab: {old_tokenizer_schema_vocab}, new vocab {tokenizer_schema_vocab}")
+
+    logger.info("Loading old model training parameters")
+    train_args = cli_utils.load_saved_args(path_join(args.model_dir, "args.toml"))
+
+    logger.info("Creating tokenizer")
+    text_tokenizer = transformers.AutoTokenizer.from_pretrained(train_args["encoder_model"], use_fast=True)
+    schema_tokenizer = nsp.TopSchemaTokenizer(tokenizer_schema_vocab, text_tokenizer)
+
+    # --- merging tsv files
+
+    # assumptions
+    if args.new_data_amount < 1:
+        raise NotImplementedError()
+
+    if args.old_data_sampling_method != nsp.dataclasses.SamplingMethods.sample:
+        raise NotImplementedError()
 
     logger.info("Loading data")
-    # load data and sample previous batches
-    train_dataset, eval_dataset = load_data(
-        path=path_join(args.data_dir, "data.pkl"),
-        new_data_amount=args.new_data_amount,
-        old_data_amount=args.old_data_amount,
-        old_data_sampling_method=args.old_data_sampling_method,
-    )
-    train_args = cli_utils.load_saved_args(path_join(args.model_dir, "args.toml"))
+
+    preprocess = partial(nsp.data.make_dataset, schema_tokenizer=schema_tokenizer, progress_bar=False)
+    logger.info("Pre-processing current batch")
+    train_dataset = preprocess(data_dir_path / "train.tsv")
+    eval_dataset = preprocess(data_dir_path / "test.tsv")
+
+    if args.old_data_amount > 0:
+        old_train_datasets = []
+
+        for batch_idx in tqdm(range(current_batch_number), desc="pre-processing previous batches"):
+            previous_batch_dir = batches_dir / f"batch_{batch_idx}"
+            _train_dataset = preprocess(previous_batch_dir / "train.tsv")
+
+            old_train_datasets.append(_train_dataset)
+
+        old_train_dataset = torch.utils.data.ConcatDataset(old_train_datasets)
+        train_dataset = nsp.data.SampleConcatSubset(
+            concat_dataset=train_dataset,
+            sample_dataset=old_train_dataset,
+            sample_probability=args.old_data_amount,
+        )
+
+    logger.info("Printing out tokenized-detokenized examples (useful for pre-processing debugging)")
+    for _ in range(10):
+        idx = random.randint(0, len(train_dataset))
+        item = train_dataset[idx]
+        detokenized = schema_tokenizer.decode(item.decoder_input_ids, item.input_ids)
+        logger.info(detokenized)
 
     # NOTE: do not log metrics as hyperparameters
     wandb.config.update({"pretrain_" + k: v for k, v in train_args.items() if k != "metrics"})
@@ -464,6 +464,8 @@ def main(args):
             "max_tgt_len": max_tgt_len,
             **{k: v for k, v in vars(args).items() if v is not None},
         }
+
+        assert "encoder_model" in args_dict, "required for the next iteration to create tokenizer"
         toml.dump(args_dict, f)
 
     if args.clean_output:

@@ -228,12 +228,12 @@ class Seq2SeqDataCollator:
                 raise ValueError(f"encoder input tensors have different lengths({key})")
 
 
-def make_dataset(filepath, schema_tokenizer: TopSchemaTokenizer):
+def make_dataset(filepath, schema_tokenizer: TopSchemaTokenizer, progress_bar=True):
     data = pd.read_table(filepath, names=["text", "tokens", "schema"])
 
     pairs = [
         schema_tokenizer.encode_pair(schema, text)
-        for text, schema in tqdm(zip(data.tokens, data.schema), total=len(data.tokens))
+        for text, schema in tqdm(zip(data.tokens, data.schema), total=len(data.tokens), disable=not progress_bar)
     ]
 
     dataset = PointerDataset.from_pair_items(pairs)
