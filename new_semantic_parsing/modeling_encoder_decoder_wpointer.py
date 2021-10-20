@@ -534,20 +534,6 @@ class EncoderDecoderWPointerModel(transformers.PreTrainedModel):
         for n, p1 in self.named_parameters():
             p2 = self.initial_params[n]
 
-            if self.expanded_by != 0 and (
-                "lm_head.decoder.weight" in n or
-                "lm_head.bias" in n
-            ):
-                p1 = p1[:-self.expanded_by]
-
-            elif self.expanded_by != 0 and (
-                "decoder.embeddings.word_embeddings" in n
-            ):
-                p1_old_vocab = p1[:self._old_schema_vocab_size]
-                p1_pointer_emb = p1[-self.config.max_src_len:]
-
-                p1 = torch.cat([p1_old_vocab, p1_pointer_emb], dim=0)
-
             norm += torch.dist(p1, p2, p=self.config.move_norm_p)
             count += 1
 
