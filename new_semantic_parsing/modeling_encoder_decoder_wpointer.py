@@ -226,6 +226,11 @@ class EncoderDecoderWPointerModel(transformers.PreTrainedModel):
         # the number of logits depends on the input size (batch_size, tgt_seq_len, schema_vocab_size + src_seq_len).
         # To overcome this, we change self.decoder.vocab_size when generating.
         src_seq_len = input_ids.shape[1]
+
+        if src_seq_len > self.config.max_src_len:
+            logger.warning(f"The input sequence (length {src_seq_len}) is longer than the specified max sequence len {self.config.max_src_len}")
+            src_seq_len = self.config.max_src_len
+
         self.config.decoder.vocab_size = self.output_vocab_size + src_seq_len
 
         generated = super().generate(
