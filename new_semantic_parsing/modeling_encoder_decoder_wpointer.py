@@ -230,6 +230,14 @@ class EncoderDecoderWPointerModel(transformers.PreTrainedModel):
         if src_seq_len > self.config.max_src_len:
             logger.warning(f"The input sequence (length {src_seq_len}) is longer than the specified max sequence len {self.config.max_src_len}")
             src_seq_len = self.config.max_src_len
+            logger.warning(f"The input sequence is truncated to {src_seq_len}")
+            input_ids = input_ids[:, :src_seq_len]
+            pointer_mask = pointer_mask[:, :src_seq_len]
+
+            attention_mask = kwargs.get("attention_mask")
+            if attention_mask is not None:
+                attention_mask = attention_mask[:, :src_seq_len]
+                kwargs["attention_mask"] = attention_mask
 
         self.config.decoder.vocab_size = self.output_vocab_size + src_seq_len
 
@@ -366,12 +374,12 @@ class EncoderDecoderWPointerModel(transformers.PreTrainedModel):
         if torch.max(decoder_input_ids) >= self.decoder.config.vocab_size:
             raise RuntimeError(f"Vocab mismatch in decoder.\n"
                                f"decoder_vocab_size={self.decoder.config.vocab_size}, "
-                               f"but decoder_input_ids={decoder_input_ids}")
+                               f"but decoder_input_ids max value is {torch.max(decoder_input_ids)}")
 
         if torch.max(decoder_input_ids) >= self.decoder.embeddings.word_embeddings.num_embeddings:
             raise RuntimeError(f"Vocab mismatch in decoder.\n"
                                + f"decoder_vocab_size={self.decoder.embeddings.word_embeddings.num_embeddings}, "
-                               + f"but decoder_input_ids={decoder_input_ids}")
+                               + f"but decoder_input_ids max value is {torch.max(decoder_input_ids)}")
 
         # Encode
         if encoder_outputs is None:
