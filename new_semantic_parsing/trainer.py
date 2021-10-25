@@ -105,11 +105,12 @@ class Trainer:
         self.train_dataloader = None
         self.valid_dataloader = None
 
-    def fit(self, model: PointerModule, optimizer_and_scheduler=None, eval_before_training=False):
+    def fit(self, model: PointerModule, optimizer_and_scheduler=None, eval_before_training=False, use_synaptic_intelligence=False):
         self.setup_trainer(
             model=model,
             optimizer_and_scheduler=optimizer_and_scheduler,
             eval_before_training=eval_before_training,
+            use_synaptic_intelligence=use_synaptic_intelligence,
         )
 
         # Training loop
@@ -184,7 +185,7 @@ class Trainer:
             # logger.info(f"Loading the best model from {self.save_dir}")
             # self.model.model = self.model.model.from_pretrained(self.save_dir)
 
-    def setup_trainer(self, model, optimizer_and_scheduler=None, eval_before_training=False):
+    def setup_trainer(self, model, optimizer_and_scheduler=None, eval_before_training=False, use_synaptic_intelligence=False):
         logger.info(f"Loading the model to {self.device}")
         self.model: PointerModule = model.to(self.device)
         self.model.global_step = 0
@@ -199,7 +200,7 @@ class Trainer:
 
         if optimizer_and_scheduler is None:
             logger.info(f"Creating new optimizers")
-            optimizer_and_scheduler = self.model.configure_optimizers()
+            optimizer_and_scheduler = self.model.configure_optimizers(use_synaptic_intelligence=use_synaptic_intelligence)
         else:
             logger.info(f"Using provided optimizers")
 

@@ -418,6 +418,7 @@ def main(args):
         model=lightning_module,
         optimizer_and_scheduler=optimizer_and_scheduler,
         eval_before_training=True,
+        use_synaptic_intelligence=False,
     )
 
     cli_utils.check_config(lightning_module, trainer, args, strict=True)

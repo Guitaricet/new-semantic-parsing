@@ -180,12 +180,12 @@ class PointerModule(nn.Module):
         avg_log["epoch_loss"] = avg_log.pop("loss")
         return {"log": avg_log}
 
-    def configure_optimizers(self):
+    def configure_optimizers(self, use_synaptic_intelligence=False):
         optimizer = opt.get_optimizers(
             model=self.model,
             learning_rate=self.lr,
             weight_decay=self.weight_decay,
-            use_synaptic_intelligence=True,  # activates AdamSI optimizer
+            use_synaptic_intelligence=use_synaptic_intelligence,  # activates AdamSI optimizer
         )
         if self.no_lr_scheduler:
             return optimizer
