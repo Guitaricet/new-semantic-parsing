@@ -284,7 +284,7 @@ def main(args):
 
     if len(tokenizer_schema_vocab) <= len(old_tokenizer_schema_vocab):
         raise ValueError("For class-incremental case, new vocab should be strictly larger than the previous vocab. "
-                         f"Got previous vocab size {len(old_tokenizer_schema_vocab)} and new vocab size {schema_tokenizer.vocab_size}")
+                         f"Got previous vocab size {len(old_tokenizer_schema_vocab)} and new vocab size {len(tokenizer_schema_vocab)}")
 
     # the first 3 are special tokens and they are not saved
     if tokenizer_schema_vocab[:len(old_tokenizer_schema_vocab)] != old_tokenizer_schema_vocab:
@@ -332,7 +332,7 @@ def main(args):
 
     logger.info("Printing out tokenized-detokenized examples (useful for pre-processing debugging)")
     for _ in range(10):
-        idx = random.randint(0, len(train_dataset))
+        idx = random.randint(0, len(train_dataset) - 1)
         item = train_dataset[idx]
         detokenized = schema_tokenizer.decode(item.decoder_input_ids, item.input_ids)
         logger.info(detokenized)
