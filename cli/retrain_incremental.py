@@ -133,6 +133,8 @@ def parse_args(args=None):
     parser.add_argument("--dynamic-weight-consolidation", default=False, action="store_true",
                         help="Dynamically selects weight consolidation strength as in "
                              "https://aclanthology.org/2021.naacl-main.212/")
+    parser.add_argument("--use-synaptic-intelligence", default=False, action="store_true",
+                        help="Enables AdamSI optimizer that tracks the path integral needed for Synaptic Intelligence")
 
     # --- freezing
     parser.add_argument("--freeze-encoder", default=None, type=int,
@@ -418,7 +420,7 @@ def main(args):
         model=lightning_module,
         optimizer_and_scheduler=optimizer_and_scheduler,
         eval_before_training=True,
-        use_synaptic_intelligence=False,
+        use_synaptic_intelligence=args.use_synaptic_intelligence,
     )
 
     cli_utils.check_config(lightning_module, trainer, args, strict=True)
