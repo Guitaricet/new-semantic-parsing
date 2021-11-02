@@ -223,7 +223,7 @@ class AdamSI(torch.optim.Adam):
         elif isinstance(params, list) and isinstance(params[0]["params"], KeyIndexableList):
             self.omega = [
                 {
-                    "omega": KeyIndexableList([(k, v) for k, v in group_dict["params"].items()]),
+                    "omega": KeyIndexableList([(k, torch.zeros_like(v)) for k, v in group_dict["params"].items()]),
                     "group_type": group_dict["group_type"],
                 }
                 for group_dict in params
@@ -233,7 +233,6 @@ class AdamSI(torch.optim.Adam):
             raise ValueError(params)
 
         super().__init__(params, **kwargs)
-
 
     @torch.no_grad()
     def step(self, closure=None):
@@ -247,6 +246,7 @@ class AdamSI(torch.optim.Adam):
                 loss = closure()
 
         for group, omega_group in zip(self.param_groups, self.omega_groups):  # Modification by Vlad Lialin
+            omegas_with_grad = []
             params_with_grad = []
             grads = []
             exp_avgs = []
@@ -258,6 +258,7 @@ class AdamSI(torch.optim.Adam):
             for i, p in enumerate(group['params']):
                 if p.grad is not None:
                     params_with_grad.append(p)
+                    omegas_with_grad.append(omega_group["omega"][i])
                     if p.grad.is_sparse:
                         raise RuntimeError('Adam does not support sparse gradients, please consider SparseAdam instead')
                     grads.append(p.grad)
@@ -287,7 +288,7 @@ class AdamSI(torch.optim.Adam):
 
             beta1, beta2 = group['betas']
             self._step_fn(params_with_grad,  # Modification by Vlad Lialin
-                   omega_group["omega"],  # Modification by Vlad Lialin
+                   omegas_with_grad,  # Modification by Vlad Lialin
                    grads,
                    exp_avgs,
                    exp_avg_sqs,

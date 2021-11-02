@@ -13,6 +13,10 @@
 # limitations under the License.
 # =============================================================================
 """Utils only used in cli scripts"""
+import os
+import sys
+import logging
+
 import toml
 import torch
 
@@ -21,9 +25,19 @@ import numpy as np
 import new_semantic_parsing as nsp
 import new_semantic_parsing.metrics
 import new_semantic_parsing.utils
-from cli.train import logger
 
 from new_semantic_parsing import config
+
+
+logging.basicConfig(
+    format="%(asctime)s | %(levelname)s | %(name)s | %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S",
+    level=logging.INFO,
+    stream=sys.stdout,
+)
+logger = logging.getLogger(os.path.basename(__file__))
+logging.getLogger("transformers.configuration_utils").setLevel(logging.WARNING)
+logging.getLogger("wandb.sdk.internal.internal").setLevel(logging.WARNING)
 
 
 def evaluate_model_n_rounds(

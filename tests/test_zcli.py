@@ -16,14 +16,15 @@ import os
 import shutil
 import unittest
 
-from cli import preprocess, train, retrain
+from cli import preprocess, train
+import cli.retrain_incremental as retrain
 
 
 DATA = "../data/top-dataset-semantic-parsing-1000"
 DATA_SNIPS = "../data/snips/top_format"
 DATA_BIN = "test_cli/toy_preprocessed"
 DATA_BIN_SNIPS = "test_cli/snips_preprocessed"
-MODEL_DIR = "test_cli/train_lihgtning_output"
+MODEL_DIR = "test_cli/train_output"
 OUTPUT_DIR = "test_cli/retrain_output"
 EPOCHS = 2
 
@@ -529,3 +530,30 @@ class TestPreprocessCLI(unittest.TestCase):
 
         args = retrain.parse_args(args)
         retrain.main(args)
+
+    @unittest.skipUnless(data_exists, skip_msg)
+    def test_19_train_synaptic_intelligence(self):
+        # python cli/train.py --data-dir tests/test_cli/toy_preprocessed --output-dir tests/test_cli/train_output \
+        # --layers 1 --hidden 16 --heads 2 --epochs 2 --use-synaptic-intelligence --lr 1e-3
+        shutil.rmtree(OUTPUT_DIR, ignore_errors=True)
+
+        args = [
+            "--data-dir",
+            DATA_BIN,
+            "--output-dir",
+            OUTPUT_DIR,
+            "--layers",
+            "1",
+            "--hidden",
+            "16",
+            "--heads",
+            "2",
+            "--epochs",
+            f"{EPOCHS}",
+            "--use-synaptic-intelligence",
+            "--lr",
+            "1e-3",
+        ]
+
+        args = train.parse_args(args)
+        train.main(args)

@@ -148,6 +148,8 @@ def parse_args(args=None):
                         help="append the final metrics to this file, used for plotting")
     parser.add_argument("--skip-training", default=False, action="store_true",
                         help="Only used for debug")
+    parser.add_argument("--use-synaptic-intelligence", default=False, action="store_true",
+                        help="Enables AdamSI optimizer that tracks the path integral needed for Synaptic Intelligence")
 
     # fmt: on
 
@@ -182,7 +184,7 @@ def parse_args(args=None):
     return args
 
 
-def make_model(schema_tokenizer, max_src_len, args, preprocess_args=None):
+def make_model(schema_tokenizer, max_src_len, args, preprocess_args=None, use_synaptic_intelligence=False):
     """Initialize a model.
     If args.encoder_model is specified, use it to load a pretrained encoder model.
 
@@ -253,6 +255,9 @@ def make_model(schema_tokenizer, max_src_len, args, preprocess_args=None):
         model_args=args,
     )
 
+    if use_synaptic_intelligence:
+        model.reset_initial_params()
+
     return model
 
 
@@ -305,7 +310,13 @@ def main(args):
         preprocess_args = None
 
     logger.info("Creating a model")
-    model = make_model(schema_tokenizer, max_src_len, args, preprocess_args)
+    model = make_model(
+        schema_tokenizer=schema_tokenizer,
+        max_src_len=max_src_len,
+        args=args,
+        preprocess_args=preprocess_args,
+        use_synaptic_intelligence=args.use_synaptic_intelligence,
+    )
 
     logger.info("Preparing for training")
 
@@ -364,7 +375,7 @@ def main(args):
         logger.info("Script finished successfully")
         return
 
-    trainer.fit(lightning_module)
+    trainer.fit(model=lightning_module, use_synaptic_intelligence=args.use_synaptic_intelligence)
 
     # Save weight importance
     if isinstance(trainer.optimizer, nsp.optimization.AdamSI):
