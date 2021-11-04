@@ -214,6 +214,9 @@ def make_model(schema_tokenizer, max_src_len, args, preprocess_args=None, use_sy
             dropout=args.dropout,
             model_args=args,
         )
+        if use_synaptic_intelligence:
+            model.reset_initial_params()
+
         return model
 
     # use a pretrained model as an encoder
@@ -381,7 +384,7 @@ def main(args):
     if isinstance(trainer.optimizer, nsp.optimization.AdamSI):
         adam_si: nsp.optimization.AdamSI = trainer.optimizer
         model.set_new_param_importance(adam_si.omega, scale=args.new_param_importance_scale)
-        model.save_pretrained(args.save_directory)
+        model.save_pretrained(args.output_dir)
 
     logger.info("Training finished!")
 

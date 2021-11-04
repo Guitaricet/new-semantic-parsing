@@ -596,13 +596,23 @@ class EncoderDecoderWPointerModel(transformers.PreTrainedModel):
         for n, p in self.named_parameters():
             p_initial = self.initial_params[n]
             p_importance = self.param_importance[n]
-            p_omega = omega[n]
+
+            # this is relatively slow, but we use this function only once per run
+            for group_dict in omega:
+                if n in group_dict["omega"]:
+                    p_omega = group_dict["omega"][n]
+                    break
+            else:
+                raise ValueError("No omega for {}".format(n))
 
             delta = p - p_initial
             current_task_param_importance = p_omega / (delta ** 2 + 1e-7)
 
             new_importance = p_importance + scale * current_task_param_importance
-            new_importance = torch.max(new_importance, self.config.max_param_importance)
+
+            new_importance = new_importance.maximum(
+                torch.tensor(self.config.max_param_importance, device=new_importance.device)
+            )
             self.param_importance.set(n, new_importance)
 
     @torch.no_grad()

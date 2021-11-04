@@ -46,12 +46,21 @@ class KeyIndexableList:
         k, v = self.list_of_kv_tuples[item]
         return v
 
+    def __contains__(self, item):
+        return item in self._str_index
+
     def __iter__(self):
         for _, v in self.list_of_kv_tuples:
             yield v
 
     def __len__(self):
         return len(self.list_of_kv_tuples)
+
+    def keys(self):
+        return self._str_index.keys()
+
+    def values(self):
+        return self._str_index.values()
 
     def items(self):
         for k, v in self.list_of_kv_tuples:
@@ -88,25 +97,13 @@ def get_optimizers(model, learning_rate, weight_decay=0, adam_eps=1e-9, use_syna
     else:
         raise ValueError("learning_rate should be either float or dict")
 
-    # decoder parameters include prediction head and pointer network
-    # optionally, they also include the module which projects encoder representations
-    # into decoder-sized dimension
-    to_chain = [
-        model.decoder.named_parameters(),
-        model.lm_head.named_parameters(),
-        model.decoder_q_proj.named_parameters(),
-    ]
-    if model.enc_dec_proj is not None:
-        to_chain.append(model.enc_dec_proj.named_parameters())
-
-    decoder_parameters = chain(*to_chain)
-
     no_decay = ["bias", "LayerNorm.weight"]
     # fmt: off
     optimizer_grouped_parameters = [
         {
             "params": KeyIndexableList(
-                [(n, p) for n, p in decoder_parameters if not any(nd in n for nd in no_decay)]
+                [(n, p) for n, p in model.named_parameters()
+                 if not any(nd in n for nd in no_decay) and "encoder" not in n]
             ),
             "initial_lr": decoder_lr,
             "lr": decoder_lr,
@@ -116,7 +113,8 @@ def get_optimizers(model, learning_rate, weight_decay=0, adam_eps=1e-9, use_syna
         },
         {
             "params": KeyIndexableList(
-                [(n, p) for n, p in decoder_parameters if any(nd in n for nd in no_decay)]
+                [(n, p) for n, p in model.named_parameters()
+                 if any(nd in n for nd in no_decay) and "encoder" not in n]
             ),
             "initial_lr": decoder_lr,
             "lr": decoder_lr,
@@ -130,7 +128,8 @@ def get_optimizers(model, learning_rate, weight_decay=0, adam_eps=1e-9, use_syna
         optimizer_grouped_parameters.extend([
             {
                 "params": KeyIndexableList(
-                    [(n, p) for n, p in model.encoder.named_parameters() if not any(nd in n for nd in no_decay)]
+                    [(n, p) for n, p in model.named_parameters()
+                     if "encoder" in n and not any(nd in n for nd in no_decay)]
                 ),
                 "initial_lr": encoder_lr,
                 "lr": encoder_lr,
@@ -140,7 +139,8 @@ def get_optimizers(model, learning_rate, weight_decay=0, adam_eps=1e-9, use_syna
             },
             {
                 "params": KeyIndexableList(
-                    [(n, p) for n, p in model.encoder.named_parameters() if any(nd in n for nd in no_decay)]
+                    [(n, p) for n, p in model.named_parameters()
+                     if "encoder" in n and any(nd in n for nd in no_decay)]
                 ),
                 "initial_lr": encoder_lr,
                 "lr": encoder_lr,

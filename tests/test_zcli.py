@@ -533,8 +533,7 @@ class TestPreprocessCLI(unittest.TestCase):
 
     @unittest.skipUnless(data_exists, skip_msg)
     def test_19_train_synaptic_intelligence(self):
-        # python cli/train.py --data-dir tests/test_cli/toy_preprocessed --output-dir tests/test_cli/train_output \
-        # --layers 1 --hidden 16 --heads 2 --epochs 2 --use-synaptic-intelligence --lr 1e-3
+        # python cli/train.py --data-dir tests/test_cli/toy_preprocessed --output-dir tests/test_cli/train_output --layers 1 --hidden 16 --heads 2 --epochs 2 --use-synaptic-intelligence --lr 1e-3
         shutil.rmtree(OUTPUT_DIR, ignore_errors=True)
 
         args = [
