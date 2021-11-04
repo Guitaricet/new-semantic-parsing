@@ -184,4 +184,10 @@ def make_snips_df(snips_files):
 
 @torch.no_grad()
 def get_dynamic_ewc_weight(loss_value, ewc_reg_value):
-    return torch.log(loss_value / ewc_reg_value)
+    if ewc_reg_value < 0:
+        raise ValueError("EWC is negative")
+
+    if ewc_reg_value < 1e-16:
+        return 1
+
+    return torch.log(loss_value / (ewc_reg_value + 1e-16))
