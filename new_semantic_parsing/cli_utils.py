@@ -92,6 +92,7 @@ def evaluate_model_n_rounds(
             predictions_subset,
             labels_subset,
             monitor_classes=schema_tokenizer.vocab,
+            compute_macro=True,
             prefix=prefix,
             schema_tokenizer=schema_tokenizer,
             do_each=True,

@@ -210,6 +210,7 @@ def get_metrics(
     schema_tokenizer,
     do_each=False,
     verbose=False,
+    compute_macro=False,
 ):
     """Computes exact_match and tree-based metrics
 
@@ -224,6 +225,7 @@ def get_metrics(
         schema_tokenizer: TopSchemaTokenizer
         do_each: bool, if False compute tree path metrics only for monitor_classes[0] and overall
             if True compute tree path metrics for all monitor_classes and overall
+        compute_macro: adds macro-averaged metrics to the return dictionary
 
     Returns:
         dictionary with keys
@@ -245,6 +247,7 @@ def get_metrics(
         prefix,
         do_each,
         verbose=verbose,
+        compute_macro=compute_macro,
     )
 
     pred_strs = [schema_tokenizer.detokenize(p) for p in pred_tokens]
@@ -265,7 +268,7 @@ def get_metrics(
 
 
 def get_tree_path_metrics(
-    pred_tokens, true_tokens, monitor_classes, prefix, do_each=False, verbose=False
+    pred_tokens, true_tokens, monitor_classes, prefix, do_each=False, verbose=False, compute_macro=False,
 ):
     """Gets metrics for all classes, for monitor classes and for monitor_classes[0].
 
@@ -278,6 +281,7 @@ def get_tree_path_metrics(
         prefix: str, will be appended to all return dict keys
         do_each: bool, if False compute tree path metrics only for monitor_classes[0] and overall
             if True compute tree path metrics for all monitor_classes and overall
+        compute_macro: adds macro-averaged metrics to the return dictionary
 
     Returns:
         dictionary with keys
@@ -301,7 +305,6 @@ def get_tree_path_metrics(
         )
 
     if monitor_classes is not None:
-
         if verbose:
             logger.info(f"Computing scores for classes {monitor_classes}")
 
@@ -313,6 +316,7 @@ def get_tree_path_metrics(
         }
         tree_path_scores.update(_new_classes_scores)
 
+        sum_p, sum_r, sum_f1 = 0, 0, 0
         for i, class_ in enumerate(monitor_classes):
             if verbose:
                 logger.info(f"Computing scores for the class {class_}")
@@ -323,8 +327,21 @@ def get_tree_path_metrics(
             _class_score = get_tree_path_scores(
                 pred_tokens=pred_tokens, true_tokens=true_tokens, classes=[class_]
             )
-            _class_score = {f"cls/{prefix}_{class_}_{k}": v for k, v in _class_score.items()}
-            tree_path_scores.update(_class_score)
+            _class_score_prefixed = {f"cls/{prefix}_{class_}_{k}": v for k, v in _class_score.items()}
+            tree_path_scores.update(_class_score_prefixed)
+
+            sum_p += _class_score["tree_path_precision"]
+            sum_r += _class_score["tree_path_recall"]
+            sum_f1 += _class_score["tree_path_f1"]
+
+        if compute_macro:
+            p = sum_p / len(monitor_classes)
+            r = sum_r / len(monitor_classes)
+            f1 = sum_f1 / len(monitor_classes)
+
+            tree_path_scores[f"{prefix}_precision_macro"] = p
+            tree_path_scores[f"{prefix}_recall_macro"] = r
+            tree_path_scores[f"{prefix}_f1_macro"] = f1
 
     return tree_path_scores
 

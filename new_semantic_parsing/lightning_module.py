@@ -350,6 +350,7 @@ class PointerModule(nn.Module):
             prefix,
             self.schema_tokenizer,
             compute_metrics_for_every_class,
+            compute_macro=False,
         )
 
         log_dict = {k: self._maybe_torchify(v) for k, v in metrics_dict.items()}
