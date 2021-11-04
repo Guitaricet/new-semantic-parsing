@@ -182,5 +182,6 @@ def make_snips_df(snips_files):
     return snips_df
 
 
-def get_dynamical_ewc_weight(loss_value, ewc_reg_value):
+@torch.no_grad()
+def get_dynamic_ewc_weight(loss_value, ewc_reg_value):
     return torch.log(loss_value / ewc_reg_value)

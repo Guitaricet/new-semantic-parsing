@@ -44,6 +44,7 @@ class EncoderDecoderWPointerConfig(EncoderDecoderConfig):
         self.label_smoothing = kwargs.get("label_smoothing", 0)
         self.weight_consolidation = kwargs.get("weight_consolidation", None)
         self.max_param_importance = kwargs.get("max_param_importance", None)
+        self.dynamic_weight_consolidation = kwargs.get("dynamic_weight_consolidation", False)
 
         if model_args is not None:
             self.move_norm = getattr(model_args, "move_norm", None)
@@ -52,6 +53,7 @@ class EncoderDecoderWPointerConfig(EncoderDecoderConfig):
             self.label_smoothing = getattr(model_args, "label_smoothing", 0)
             self.weight_consolidation = getattr(model_args, "weight_consolidation", None)
             self.max_param_importance = getattr(model_args, "max_param_importance", None)
+            self.dynamic_weight_consolidation = getattr(model_args, "dynamic_weight_consolidation", False)
 
         self.model_type = self.model_type
         self.dropout = dropout or 0

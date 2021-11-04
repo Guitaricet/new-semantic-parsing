@@ -225,6 +225,7 @@ def load_model(
     weight_consolidation=None,
     new_vocab_size=None,
     max_param_importance=None,
+    dynamic_weight_consolidation=None,
 ):
     """Load a trained model and override some model properties if specified."""
     model_config = nsp.EncoderDecoderWPointerConfig.from_pretrained(model_dir)
@@ -241,6 +242,8 @@ def load_model(
         model_config.weight_consolidation = weight_consolidation
     if max_param_importance is not None:
         model_config.max_param_importance = max_param_importance
+    if dynamic_weight_consolidation is not None:
+        model_config.dynamic_weight_consolidation = dynamic_weight_consolidation
 
     model = nsp.EncoderDecoderWPointerModel.from_pretrained(model_dir, config=model_config)
     model.reset_initial_params()  # w_0 from EWC
@@ -356,6 +359,7 @@ def main(args):
         weight_consolidation=args.weight_consolidation,
         new_vocab_size=schema_tokenizer.vocab_size,
         max_param_importance=args.max_param_importance,
+        dynamic_weight_consolidation=args.dynamic_weight_consolidation,
     )
 
     logger.info("Preparing for training")

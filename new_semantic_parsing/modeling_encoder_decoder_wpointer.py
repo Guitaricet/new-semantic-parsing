@@ -29,6 +29,7 @@ import torch.nn.functional as F
 import transformers
 import wandb
 
+from new_semantic_parsing.utils import get_dynamic_ewc_weight
 from new_semantic_parsing.buffers import ParamsBufferHolder
 from new_semantic_parsing.configuration_encoder_decoder_wpointer import (
     EncoderDecoderWPointerConfig,
@@ -136,8 +137,6 @@ class EncoderDecoderWPointerModel(transformers.PreTrainedModel):
         # used for weight consolidation and move norm during both training and finetuning
         self.initial_params = None
         self.expanded_by = 0
-        if self.config.weight_consolidation is not None or self.config.move_norm is not None:
-            self.reset_initial_params()  # set initial_params
 
         self.should_update_optimizer = False  # used in expand_output_vocab
         self._old_schema_vocab_size = None  # used in get_move_norm if vocab has been expanded
@@ -478,13 +477,22 @@ class EncoderDecoderWPointerModel(transformers.PreTrainedModel):
         if self.config.move_norm is not None:
             loss += self.config.move_norm * self.get_move_norm()
 
-        if self.config.weight_consolidation is not None:
+        if self.config.weight_consolidation is not None or self.config.dynamic_weight_consolidation:
             ewc_reg = self._get_weight_consolidation()
 
-            if wandb.run is not None:
-                wandb.log({"ewc_reg": ewc_reg})
+            logdict = {"ewc_reg": ewc_reg}
 
-            loss += self.config.weight_consolidation * ewc_reg
+            ewc_weight = self.config.weight_consolidation
+            if self.config.dynamic_weight_consolidation:
+                ewc_weight = get_dynamic_ewc_weight(loss, ewc_reg)
+                logdict["dynamic_ewc_weight"] = ewc_weight
+
+            ewc_reg_weighted = ewc_weight * ewc_reg
+            logdict["ewc_reg_weighted"] = ewc_reg_weighted
+
+            loss += ewc_reg_weighted
+            if wandb.run is not None:
+                wandb.log(logdict)
 
         return loss
 
@@ -576,6 +584,7 @@ class EncoderDecoderWPointerModel(transformers.PreTrainedModel):
 
         return reg
 
+    @torch.no_grad()
     def set_new_param_importance(self, omega, scale=1.0):
         """Omega = Clip(model.param_importance + omega / (model.params - model.initial_params))
 
